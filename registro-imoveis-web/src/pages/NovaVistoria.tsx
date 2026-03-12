@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { Vistoria, Foto } from '../types/vistoria';
-import { salvarVistoriaNoFirebase } from '../services/vistoriaService'; // <-- IMPORTAÇÃO NOVA
+import { salvarVistoriaNoFirebase } from '../services/vistoriaService';
+import { PDFDownloadLink } from '@react-pdf/renderer'; // <-- IMPORTAÇÃO NOVA
+import { RelatorioPDF } from '../components/RelatorioPDF'; // <-- IMPORTAÇÃO NOVA
 
 export function NovaVistoria() {
   const [vistoria, setVistoria] = useState<Partial<Vistoria>>({
@@ -10,7 +12,6 @@ export function NovaVistoria() {
     fotos: [],
   });
   
-  // Novo estado para controlar se estamos a gravar os dados
   const [aGuardar, setAGuardar] = useState(false);
 
   const handleAdicionarFotos = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,7 +37,6 @@ export function NovaVistoria() {
     }));
   };
 
-  // --- FUNÇÃO ATUALIZADA ---
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -46,19 +46,18 @@ export function NovaVistoria() {
     }
 
     try {
-      setAGuardar(true); // Muda o botão para "A guardar..."
-      
+      setAGuardar(true);
       const idGerado = await salvarVistoriaNoFirebase(vistoria);
-      
       alert(`Vistoria guardada com sucesso! ID: ${idGerado}`);
       
-      // Limpa o formulário para a próxima vistoria
-      setVistoria({ titulo: '', endereco: '', observacoes: '', fotos: [] });
+      // NOTA: Removi a limpeza do formulário aqui para que o utilizador 
+      // possa descarregar o PDF depois de gravar, sem perder os dados do ecrã!
       
     } catch (erro) {
+      console.error(erro);
       alert("Ocorreu um erro ao guardar. Verifique a consola.");
     } finally {
-      setAGuardar(false); // Volta o botão ao normal
+      setAGuardar(false);
     }
   };
 
@@ -147,22 +146,35 @@ export function NovaVistoria() {
           )}
         </div>
 
-        <button 
-          type="submit" 
-          disabled={aGuardar} // Desativa o botão se estiver a gravar
-          style={{ 
-            padding: '15px', 
-            backgroundColor: aGuardar ? '#ccc' : '#0056b3', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '5px', 
-            cursor: aGuardar ? 'not-allowed' : 'pointer', 
-            fontWeight: 'bold', 
-            fontSize: '16px'
-          }}
-        >
-          {aGuardar ? 'A guardar vistoria e imagens...' : 'Guardar Dados'}
-        </button>
+        {/* --- NOVA ÁREA DE BOTÕES --- */}
+        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+          <button 
+            type="submit" 
+            disabled={aGuardar}
+            style={{ 
+              flex: 1, padding: '15px', backgroundColor: aGuardar ? '#ccc' : '#0056b3', 
+              color: 'white', border: 'none', borderRadius: '5px', cursor: aGuardar ? 'not-allowed' : 'pointer', 
+              fontWeight: 'bold', fontSize: '16px'
+            }}
+          >
+            {aGuardar ? 'A guardar...' : 'Guardar Dados'}
+          </button>
+
+          <PDFDownloadLink
+            document={<RelatorioPDF vistoria={vistoria} />}
+            fileName={`Vistoria_${vistoria.titulo ? vistoria.titulo.replace(/\s+/g, '_') : 'Imovel'}.pdf`}
+            style={{ 
+              flex: 1, padding: '15px', backgroundColor: '#28a745', color: 'white', 
+              textDecoration: 'none', borderRadius: '5px', fontWeight: 'bold', 
+              fontSize: '16px', textAlign: 'center', display: 'flex', 
+              alignItems: 'center', justifyContent: 'center'
+            }}
+          >
+            {({ loading }) => (loading ? 'A preparar documento...' : 'Descarregar PDF')}
+          </PDFDownloadLink>
+        </div>
+        {/* ----------------------------- */}
+
       </form>
     </div>
   );
