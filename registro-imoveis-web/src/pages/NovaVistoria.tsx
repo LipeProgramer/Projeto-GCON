@@ -1,27 +1,27 @@
 import { useState } from 'react';
 import type { Vistoria, Foto } from '../types/vistoria';
+import { salvarVistoriaNoFirebase } from '../services/vistoriaService'; // <-- IMPORTAÇÃO NOVA
 
 export function NovaVistoria() {
   const [vistoria, setVistoria] = useState<Partial<Vistoria>>({
     titulo: '',
     endereco: '',
     observacoes: '',
-    fotos: [], // Iniciamos a lista de fotos vazia
+    fotos: [],
   });
+  
+  // Novo estado para controlar se estamos a gravar os dados
+  const [aGuardar, setAGuardar] = useState(false);
 
-  // Função para lidar com a seleção de imagens
   const handleAdicionarFotos = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const arquivos = Array.from(e.target.files);
-      
-      // Transformamos os arquivos selecionados no formato que definimos no nosso 'type'
       const novasFotos: Foto[] = arquivos.map((arquivo) => ({
-        id: crypto.randomUUID(), // Gera um ID único provisório
-        url: URL.createObjectURL(arquivo), // Cria uma URL temporária para mostrar o preview
-        file: arquivo, // Guarda o arquivo real para enviarmos ao Firebase depois
+        id: crypto.randomUUID(),
+        url: URL.createObjectURL(arquivo),
+        file: arquivo,
       }));
 
-      // Atualizamos o estado juntando as fotos antigas com as novas
       setVistoria(prev => ({
         ...prev,
         fotos: [...(prev.fotos || []), ...novasFotos]
@@ -36,10 +36,30 @@ export function NovaVistoria() {
     }));
   };
 
-  const handleGuardar = (e: React.FormEvent) => {
+  // --- FUNÇÃO ATUALIZADA ---
+  const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Dados da vistoria:', vistoria);
-    alert('Dê uma olhada no console do navegador (F12) para ver os dados capturados!');
+    
+    if (!vistoria.titulo || !vistoria.endereco || !vistoria.dataVistoria) {
+      alert("Por favor, preencha os campos obrigatórios.");
+      return;
+    }
+
+    try {
+      setAGuardar(true); // Muda o botão para "A guardar..."
+      
+      const idGerado = await salvarVistoriaNoFirebase(vistoria);
+      
+      alert(`Vistoria guardada com sucesso! ID: ${idGerado}`);
+      
+      // Limpa o formulário para a próxima vistoria
+      setVistoria({ titulo: '', endereco: '', observacoes: '', fotos: [] });
+      
+    } catch (erro) {
+      alert("Ocorreu um erro ao guardar. Verifique a consola.");
+    } finally {
+      setAGuardar(false); // Volta o botão ao normal
+    }
   };
 
   return (
@@ -74,6 +94,7 @@ export function NovaVistoria() {
           <label style={{ fontWeight: 'bold', marginBottom: '5px' }}>Data da Vistoria</label>
           <input 
             type="date" 
+            value={vistoria.dataVistoria ? new Date(vistoria.dataVistoria).toISOString().split('T')[0] : ''}
             onChange={e => setVistoria({...vistoria, dataVistoria: new Date(e.target.value)})}
             style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }}
             required
@@ -89,7 +110,6 @@ export function NovaVistoria() {
           />
         </div>
 
-        {/* --- NOVA ÁREA DE FOTOS --- */}
         <div style={{ border: '2px dashed #ccc', padding: '20px', borderRadius: '5px', textAlign: 'center' }}>
           <label style={{ fontWeight: 'bold', cursor: 'pointer', display: 'block', marginBottom: '10px' }}>
             Clique aqui para adicionar fotos
@@ -102,7 +122,6 @@ export function NovaVistoria() {
             />
           </label>
           
-          {/* Grid de Previews */}
           {vistoria.fotos && vistoria.fotos.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '15px' }}>
               {vistoria.fotos.map((foto) => (
@@ -130,12 +149,19 @@ export function NovaVistoria() {
 
         <button 
           type="submit" 
+          disabled={aGuardar} // Desativa o botão se estiver a gravar
           style={{ 
-            padding: '15px', backgroundColor: '#0056b3', color: 'white', 
-            border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px'
+            padding: '15px', 
+            backgroundColor: aGuardar ? '#ccc' : '#0056b3', 
+            color: 'white', 
+            border: 'none', 
+            borderRadius: '5px', 
+            cursor: aGuardar ? 'not-allowed' : 'pointer', 
+            fontWeight: 'bold', 
+            fontSize: '16px'
           }}
         >
-          Guardar Dados
+          {aGuardar ? 'A guardar vistoria e imagens...' : 'Guardar Dados'}
         </button>
       </form>
     </div>
