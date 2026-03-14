@@ -1,20 +1,78 @@
 import { useState } from 'react';
-import type { Vistoria, Foto } from '../types/vistoria';
+import type { Vistoria, Ambiente, Foto } from '../types/vistoria';
 import { salvarVistoriaNoFirebase } from '../services/vistoriaService';
-import { PDFDownloadLink } from '@react-pdf/renderer'; // <-- IMPORTAÇÃO NOVA
-import { RelatorioPDF } from '../components/RelatorioPDF'; // <-- IMPORTAÇÃO NOVA
+import logoBranco from '../assets/logo_white.png';
+
+// --- VALIDAÇÃO DO SEI ---
+const orgaosValidos: Record<string, string> = {
+  "01": "PMM - Prefeitura Municipal de Maringá",
+  "03": "MGAPREV - Maringá Previdência",
+  "16": "IAM - Instituto Ambiental de Maringá",
+};
+
+const secretariasValidas: Record<string, string> = {
+  "02": "GAPRE", "03": "PROGE", "04": "SEGOV", "05": "SELOG",
+  "06": "SEFAZ", "07": "SEURBH", "08": "SAUDE", "09": "SEDUC",
+  "10": "SEBEA", "11": "SEMOB", "12": "SAET", "13": "SAS",
+  "14": "SEMUC", "15": "SESP", "16": "SEMULHER", "17": "COMPLIANCE",
+  "19": "SEINFRA", "20": "SEMOP", "22": "SEGEP", "26": "SSM",
+  "27": "SELURB", "28": "AMETRO", "29": "SETRAB", "31": "SEJUC",
+  "33": "SECOM", "34": "SECRIANCA", "35": "AMETECH", "36": "SEPED",
+  "99": "Comissões e Conselhos",
+};
+
+const listaSecretariasDropdown = Object.values(secretariasValidas);
 
 export function NovaVistoria() {
   const [vistoria, setVistoria] = useState<Partial<Vistoria>>({
-    titulo: '',
+    nomeProjeto: '',
+    processoSei: '',
     endereco: '',
-    observacoes: '',
-    fotos: [],
+    secretaria: listaSecretariasDropdown[3], // Padrão SELOG
+    ambientes: [],
   });
   
   const [aGuardar, setAGuardar] = useState(false);
+  const [msgProcesso, setMsgProcesso] = useState({ text: "", color: "" });
 
-  const handleAdicionarFotos = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProcessoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let valor = e.target.value.replace(/\D/g, "");
+
+    if (valor.length > 2) valor = valor.replace(/^(\d{2})(\d)/, "$1.$2");
+    if (valor.length > 5) valor = valor.replace(/^(\d{2})\.(\d{2})(\d)/, "$1.$2.$3");
+    if (valor.length > 13) valor = valor.replace(/\.(\d{8})(\d)/, ".$1/$2");
+    if (valor.length > 17) valor = valor.replace(/\/(\d{4})(\d)/, "/$1.$2");
+    if (valor.length > 21) valor = valor.substring(0, 21);
+
+    setVistoria(prev => ({ ...prev, processoSei: valor }));
+
+    if (valor.length >= 5) {
+      const partes = valor.split(".");
+      const orgao = partes[0];
+      const secretaria = partes[1];
+
+      if (!orgaosValidos[orgao]) {
+        setMsgProcesso({ text: `❌ Órgão inválido`, color: "#d9534f" });
+      } else if (!secretariasValidas[secretaria]) {
+        setMsgProcesso({ text: `❌ Secretaria desconhecida`, color: "#d9534f" });
+      } else {
+        const nomeSec = secretariasValidas[secretaria];
+        setMsgProcesso({ text: `✅ ${nomeSec}`, color: "#009639" });
+      }
+    } else {
+      setMsgProcesso({ text: "", color: "" });
+    }
+  };
+
+  const adicionarAmbiente = () => {
+    const nome = prompt("Nome do ambiente (Ex: Fachada, Sala):");
+    if (nome) {
+      const novoAmbiente: Ambiente = { id: crypto.randomUUID(), nome, fotos: [] };
+      setVistoria(prev => ({ ...prev, ambientes: [...(prev.ambientes || []), novoAmbiente] }));
+    }
+  };
+
+  const handleAdicionarFotos = (ambienteId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const arquivos = Array.from(e.target.files);
       const novasFotos: Foto[] = arquivos.map((arquivo) => ({
@@ -25,157 +83,120 @@ export function NovaVistoria() {
 
       setVistoria(prev => ({
         ...prev,
-        fotos: [...(prev.fotos || []), ...novasFotos]
+        ambientes: prev.ambientes?.map(amb => 
+          amb.id === ambienteId ? { ...amb, fotos: [...amb.fotos, ...novasFotos] } : amb
+        )
       }));
     }
   };
 
-  const handleRemoverFoto = (idParaRemover: string) => {
-    setVistoria(prev => ({
-      ...prev,
-      fotos: prev.fotos?.filter(foto => foto.id !== idParaRemover)
-    }));
-  };
-
-  const handleGuardar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!vistoria.titulo || !vistoria.endereco || !vistoria.dataVistoria) {
-      alert("Por favor, preencha os campos obrigatórios.");
+  const handleGuardar = async () => {
+    if (!vistoria.nomeProjeto || !vistoria.processoSei) {
+      alert("Por favor, preencha o Nome do Projeto e o Processo SEI.");
       return;
     }
-
     try {
       setAGuardar(true);
-      const idGerado = await salvarVistoriaNoFirebase(vistoria);
-      alert(`Vistoria guardada com sucesso! ID: ${idGerado}`);
-      
-      // NOTA: Removi a limpeza do formulário aqui para que o utilizador 
-      // possa descarregar o PDF depois de gravar, sem perder os dados do ecrã!
-      
+      await salvarVistoriaNoFirebase(vistoria);
+      alert(`Projeto "${vistoria.nomeProjeto}" salvo com sucesso!`);
     } catch (erro) {
       console.error(erro);
-      alert("Ocorreu um erro ao guardar. Verifique a consola.");
+      alert("Erro ao salvar.");
     } finally {
       setAGuardar(false);
     }
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <h2>Novo Relatório de Vistoria</h2>
-      
-      <form onSubmit={handleGuardar} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <label style={{ fontWeight: 'bold', marginBottom: '5px' }}>Título</label>
-          <input 
-            type="text" 
-            value={vistoria.titulo}
-            onChange={e => setVistoria({...vistoria, titulo: e.target.value})}
-            style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }}
-            required
-          />
+    <div>
+      <div className="banner-header">
+        <img src={logoBranco} alt="Logo CVPIM" />
+        <div className="banner-title">
+          <h1>REGISTRO FOTOGRÁFICO</h1>
+          <div className="sub">CVPIM – Comissão de Vistoria do Patrimônio Imobiliário</div>
         </div>
+      </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <label style={{ fontWeight: 'bold', marginBottom: '5px' }}>Endereço do Imóvel</label>
-          <input 
-            type="text" 
-            value={vistoria.endereco}
-            onChange={e => setVistoria({...vistoria, endereco: e.target.value})}
-            style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }}
-            required
-          />
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <label style={{ fontWeight: 'bold', marginBottom: '5px' }}>Data da Vistoria</label>
-          <input 
-            type="date" 
-            value={vistoria.dataVistoria ? new Date(vistoria.dataVistoria).toISOString().split('T')[0] : ''}
-            onChange={e => setVistoria({...vistoria, dataVistoria: new Date(e.target.value)})}
-            style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }}
-            required
-          />
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <label style={{ fontWeight: 'bold', marginBottom: '5px' }}>Observações</label>
-          <textarea 
-            value={vistoria.observacoes}
-            onChange={e => setVistoria({...vistoria, observacoes: e.target.value})}
-            style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc', minHeight: '100px' }}
-          />
-        </div>
-
-        <div style={{ border: '2px dashed #ccc', padding: '20px', borderRadius: '5px', textAlign: 'center' }}>
-          <label style={{ fontWeight: 'bold', cursor: 'pointer', display: 'block', marginBottom: '10px' }}>
-            Clique aqui para adicionar fotos
-            <input 
-              type="file" 
-              multiple 
-              accept="image/*" 
-              onChange={handleAdicionarFotos}
-              style={{ display: 'none' }} 
-            />
-          </label>
+      <div className="container">
+        <div className="card">
+          <h2>Identificação</h2>
           
-          {vistoria.fotos && vistoria.fotos.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '15px' }}>
-              {vistoria.fotos.map((foto) => (
-                <div key={foto.id} style={{ position: 'relative', width: '100px', height: '100px' }}>
-                  <img 
-                    src={foto.url} 
-                    alt="Preview" 
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '5px' }} 
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleRemoverFoto(foto.id)}
-                    style={{
-                      position: 'absolute', top: '5px', right: '5px', background: 'red', color: 'white', 
-                      border: 'none', borderRadius: '50%', width: '25px', height: '25px', cursor: 'pointer'
-                    }}
-                  >
-                    X
-                  </button>
-                </div>
-              ))}
+          <div className="grid3">
+            <div className="field">
+              <label>Processo</label>
+              <input 
+                type="text" 
+                placeholder="Ex.: 01.05.0000000/2026"
+                value={vistoria.processoSei}
+                onChange={handleProcessoChange}
+              />
+              {msgProcesso.text && <span style={{ color: msgProcesso.color, fontSize: '11px', marginTop: '2px' }}>{msgProcesso.text}</span>}
             </div>
-          )}
+
+            <div className="field">
+              <label>Imóvel</label>
+              <input 
+                type="text" 
+                placeholder="Ex.: Cadastro / Endereço"
+                value={vistoria.endereco}
+                onChange={e => setVistoria({...vistoria, endereco: e.target.value})}
+              />
+            </div>
+
+            <div className="field">
+              <label>Secretaria</label>
+              <select 
+                value={vistoria.secretaria}
+                onChange={e => setVistoria({...vistoria, secretaria: e.target.value})}
+              >
+                {listaSecretariasDropdown.map(sec => (
+                  <option key={sec} value={sec}>{sec}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="toolbar">
+            <input 
+              type="text" 
+              placeholder="Nome do projeto (obrigatório p/ salvar)" 
+              style={{ flex: 1, minWidth: '260px' }}
+              value={vistoria.nomeProjeto}
+              onChange={e => setVistoria({...vistoria, nomeProjeto: e.target.value})}
+            />
+            <button type="button" className="btn-ok" onClick={adicionarAmbiente}>Adicionar Ambiente</button>
+            <button type="button" className="btn-secondary" onClick={handleGuardar} disabled={aGuardar}>
+              {aGuardar ? 'Salvando...' : 'Salvar Projeto'}
+            </button>
+            <button type="button" className="btn-primary" style={{ background: 'var(--azul)' }}>Gerar PDF</button>
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>
+            Os projetos serão salvos no banco de dados na nuvem (Firebase).
+          </div>
         </div>
 
-        {/* --- NOVA ÁREA DE BOTÕES --- */}
-        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-          <button 
-            type="submit" 
-            disabled={aGuardar}
-            style={{ 
-              flex: 1, padding: '15px', backgroundColor: aGuardar ? '#ccc' : '#0056b3', 
-              color: 'white', border: 'none', borderRadius: '5px', cursor: aGuardar ? 'not-allowed' : 'pointer', 
-              fontWeight: 'bold', fontSize: '16px'
-            }}
-          >
-            {aGuardar ? 'A guardar...' : 'Guardar Dados'}
-          </button>
+        {/* ÁREA DOS AMBIENTES */}
+        {vistoria.ambientes?.map((ambiente) => (
+          <div key={ambiente.id} style={{ borderLeft: '6px solid var(--verde)', background: '#fff', border: '1px solid var(--border)', borderRadius: '12px', padding: '15px', marginTop: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, color: 'var(--azul)' }}>{ambiente.nome}</h3>
+              <label style={{ background: '#e5e7eb', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                📸 Anexar Fotos
+                <input type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={(e) => handleAdicionarFotos(ambiente.id, e)} />
+              </label>
+            </div>
 
-          <PDFDownloadLink
-            document={<RelatorioPDF vistoria={vistoria} />}
-            fileName={`Vistoria_${vistoria.titulo ? vistoria.titulo.replace(/\s+/g, '_') : 'Imovel'}.pdf`}
-            style={{ 
-              flex: 1, padding: '15px', backgroundColor: '#28a745', color: 'white', 
-              textDecoration: 'none', borderRadius: '5px', fontWeight: 'bold', 
-              fontSize: '16px', textAlign: 'center', display: 'flex', 
-              alignItems: 'center', justifyContent: 'center'
-            }}
-          >
-            {({ loading }) => (loading ? 'A preparar documento...' : 'Descarregar PDF')}
-          </PDFDownloadLink>
-        </div>
-        {/* ----------------------------- */}
+            {ambiente.fotos.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '12px' }}>
+                {ambiente.fotos.map(foto => (
+                  <img key={foto.id} src={foto.url} alt="Preview" style={{ width: '120px', height: '90px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #ccc' }} />
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
 
-      </form>
+      </div>
     </div>
   );
 }

@@ -1,15 +1,21 @@
 export interface Foto {
   id: string;
-  url: string; // URL da imagem depois de salva no Firebase
-  file?: File; // O arquivo físico antes do upload
-  descricao?: string; // Caso seu pai queira colocar uma legenda na foto
+  url: string;
+  file?: File;
+  descricao?: string;
+}
+
+export interface Ambiente {
+  id: string;
+  nome: string;
+  fotos: Foto[];
 }
 
 export interface Vistoria {
   id?: string;
-  titulo: string; // Ex: "Vistoria Terreno Zona 07"
-  endereco: string;
-  dataVistoria: Date;
-  observacoes: string;
-  fotos: Foto[];
+  nomeProjeto: string; // Fica lá na toolbar
+  processoSei: string;
+  endereco: string;    // O campo "Imóvel"
+  secretaria: string;
+  ambientes: Ambiente[];
 }
