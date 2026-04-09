@@ -37,8 +37,8 @@ export function RelatorioPDF({ vistoria }: Props) {
         <View style={styles.cabecalhoContainer}>
           <Image src={logoBase64} style={styles.logo} />
           <Text style={styles.cabecalhoTexto}>PREFEITURA DO MUNICÍPIO DE MARINGÁ</Text>
-          <Text style={styles.cabecalhoTexto}>Unidade Temporária{'
-'}Comissão de Vistoria do Patrimônio Imobiliário</Text>
+          <Text style={styles.cabecalhoTexto}>Unidade Temporária</Text>
+          <Text style={styles.cabecalhoTexto}>Comissão de Vistoria do Patrimônio Imobiliário</Text>
           <Text style={styles.cabecalhoEndereco}>Rua Néo Alves Martins, 2597 3º Bairro Centro, Maringá/PR</Text>
           <Text style={styles.cabecalhoEndereco}>CEP 87013-060, Telefone: (44) 3127-7004 - www.maringa.pr.gov.br</Text>
         </View>
