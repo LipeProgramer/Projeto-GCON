@@ -7,42 +7,52 @@ export async function salvarVistoriaNoFirebase(
   vistoriaData: Partial<Vistoria>,
 ) {
   try {
-    const fotosFinais: { id: string; url: string; descricao?: string }[] = [];
+    const ambientesComFotos = [] as Array<{
+      id: string;
+      nome: string;
+      fotos: Array<{ id: string; url: string; descricao?: string }>;
+    }>;
 
-    // 1. Fazer o upload de cada foto para o Storage
-    if (vistoriaData.fotos && vistoriaData.fotos.length > 0) {
-      for (const foto of vistoriaData.fotos) {
+    for (const ambiente of vistoriaData.ambientes ?? []) {
+      const fotosProcessadas = [] as Array<{ id: string; url: string; descricao?: string }>;
+
+      for (const foto of ambiente.fotos) {
         if (foto.file) {
-          // Cria um caminho único para a imagem (ex: vistorias/16789..._foto1.jpg)
           const caminhoStorage = `vistorias/${Date.now()}_${foto.file.name}`;
           const referenciaStorage = ref(storage, caminhoStorage);
-
-          // Envia o ficheiro
           await uploadBytes(referenciaStorage, foto.file);
-
-          // Pede ao Firebase o link público da imagem que acabou de subir
           const urlPublica = await getDownloadURL(referenciaStorage);
 
-          fotosFinais.push({
+          fotosProcessadas.push({
             id: foto.id,
             url: urlPublica,
             descricao: foto.descricao || "",
           });
+        } else {
+          fotosProcessadas.push({
+            id: foto.id,
+            url: foto.url,
+            descricao: foto.descricao || "",
+          });
         }
       }
+
+      ambientesComFotos.push({
+        id: ambiente.id,
+        nome: ambiente.nome,
+        fotos: fotosProcessadas,
+      });
     }
 
-    // 2. Preparar os dados para gravar no banco (sem os ficheiros pesados)
     const dadosParaGravar = {
-      titulo: vistoriaData.titulo,
+      nomeProjeto: vistoriaData.nomeProjeto,
+      processoSei: vistoriaData.processoSei,
       endereco: vistoriaData.endereco,
-      dataVistoria: vistoriaData.dataVistoria,
-      observacoes: vistoriaData.observacoes,
-      fotos: fotosFinais,
+      secretaria: vistoriaData.secretaria,
+      ambientes: ambientesComFotos,
       dataCriacao: new Date(),
     };
 
-    // 3. Gravar na coleção "vistorias" do banco de dados
     const documentoRef = await addDoc(
       collection(db, "vistorias"),
       dadosParaGravar,
@@ -50,6 +60,6 @@ export async function salvarVistoriaNoFirebase(
     return documentoRef.id;
   } catch (erro) {
     console.error("Erro ao guardar no Firebase: ", erro);
-    throw erro; // Lança o erro para podermos mostrar um aviso no ecrã depois
+    throw erro;
   }
 }

@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { PDFDownloadLink } from '@react-pdf/renderer';
 import type { Vistoria, Ambiente, Foto } from '../types/vistoria';
 import { salvarVistoriaNoFirebase } from '../services/vistoriaService';
+import { RelatorioPDF } from '../components/RelatorioPDF';
 import logoBranco from '../assets/logo_white.png';
 
 // --- VALIDAÇÃO DO SEI ---
@@ -39,22 +41,32 @@ export function NovaVistoria() {
     let valor = e.target.value.replace(/\D/g, "");
 
     if (valor.length > 2) valor = valor.replace(/^(\d{2})(\d)/, "$1.$2");
-    if (valor.length > 5) valor = valor.replace(/^(\d{2})\.(\d{2})(\d)/, "$1.$2.$3");
-    if (valor.length > 13) valor = valor.replace(/\.(\d{8})(\d)/, ".$1/$2");
-    if (valor.length > 17) valor = valor.replace(/\/(\d{4})(\d)/, "/$1.$2");
-    if (valor.length > 21) valor = valor.substring(0, 21);
+    if (valor.length > 4) valor = valor.replace(/^(\d{2})\.(\d{2})(\d)/, "$1.$2.$3");
+    if (valor.length > 12) valor = valor.replace(/^(\d{2})\.(\d{2})\.(\d{8})(\d)/, "$1.$2.$3/$4");
+    if (valor.length > 16) valor = valor.replace(/^(\d{2})\.(\d{2})\.(\d{8})\/(\d{4})(\d)/, "$1.$2.$3/$4.$5");
+    if (valor.length > 22) valor = valor.substring(0, 22);
 
-    setVistoria(prev => ({ ...prev, processoSei: valor }));
+    const valorFormatado = valor
+      .replace(/^(\d{2})(\d)/, "$1.$2")
+      .replace(/^(\d{2})\.(\d{2})(\d)/, "$1.$2.$3")
+      .replace(/^(\d{2})\.(\d{2})\.(\d{8})(\d)/, "$1.$2.$3/$4")
+      .replace(/^(\d{2})\.(\d{2})\.(\d{8})\/(\d{4})(\d)/, "$1.$2.$3/$4.$5");
 
-    if (valor.length >= 5) {
-      const partes = valor.split(".");
+    setVistoria(prev => ({ ...prev, processoSei: valorFormatado }));
+
+    if (valorFormatado.length >= 5) {
+      const partes = valorFormatado.split(".");
       const orgao = partes[0];
       const secretaria = partes[1];
+      const resto = valorFormatado.split("/")[1] ?? "";
+      const ano = resto.length >= 4 ? Number(resto.slice(0, 4)) : null;
 
       if (!orgaosValidos[orgao]) {
         setMsgProcesso({ text: `❌ Órgão inválido`, color: "#d9534f" });
       } else if (!secretariasValidas[secretaria]) {
         setMsgProcesso({ text: `❌ Secretaria desconhecida`, color: "#d9534f" });
+      } else if (ano !== null && ano < 2020) {
+        setMsgProcesso({ text: `❌ Ano deve ser 2020 ou posterior`, color: "#d9534f" });
       } else {
         const nomeSec = secretariasValidas[secretaria];
         setMsgProcesso({ text: `✅ ${nomeSec}`, color: "#009639" });
@@ -126,7 +138,7 @@ export function NovaVistoria() {
               <label>Processo</label>
               <input 
                 type="text" 
-                placeholder="Ex.: 01.05.0000000/2026"
+                placeholder="Ex.: 01.04.00006064/2024.65"
                 value={vistoria.processoSei}
                 onChange={handleProcessoChange}
               />
@@ -168,7 +180,31 @@ export function NovaVistoria() {
             <button type="button" className="btn-secondary" onClick={handleGuardar} disabled={aGuardar}>
               {aGuardar ? 'Salvando...' : 'Salvar Projeto'}
             </button>
-            <button type="button" className="btn-primary" style={{ background: 'var(--azul)' }}>Gerar PDF</button>
+            {vistoria.nomeProjeto && vistoria.ambientes?.length ? (
+              <PDFDownloadLink
+                document={<RelatorioPDF vistoria={vistoria} />}
+                fileName={`${vistoria.nomeProjeto.replace(/\s+/g, '_') || 'vistoria'}.pdf`}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  background: 'var(--azul)',
+                  color: '#fff',
+                  textDecoration: 'none',
+                  fontWeight: 'bold',
+                }}
+              >
+                {({ loading }) => (loading ? 'Gerando PDF...' : 'Gerar PDF')}
+              </PDFDownloadLink>
+            ) : (
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ background: 'var(--azul)' }}
+                disabled
+              >
+                Gerar PDF
+              </button>
+            )}
           </div>
           <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>
             Os projetos serão salvos no banco de dados na nuvem (Firebase).
