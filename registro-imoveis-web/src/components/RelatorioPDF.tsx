@@ -1,7 +1,8 @@
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import type { Vistoria } from '../types/vistoria';
+import logoRodape from '../assets/logo_rodape.png';
 
-const logoBase64 = 'registro-imoveis-web/src/assets/logo_rodape.png';
+const logoSrc = logoRodape;
 
 // Estilos específicos para o PDF (parecido com CSS, mas próprio para impressão)
 const styles = StyleSheet.create({
@@ -35,7 +36,7 @@ export function RelatorioPDF({ vistoria }: Props) {
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.cabecalhoContainer}>
-          <Image src={logoBase64} style={styles.logo} />
+          <Image src={logoSrc} style={styles.logo} />
           <Text style={styles.cabecalhoTexto}>PREFEITURA DO MUNICÍPIO DE MARINGÁ</Text>
           <Text style={styles.cabecalhoTexto}>Unidade Temporária</Text>
           <Text style={styles.cabecalhoTexto}>Comissão de Vistoria do Patrimônio Imobiliário</Text>
