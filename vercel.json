@@ -8,5 +8,15 @@
         "distDir": "dist"
       }
     }
+  ],
+  "routes": [
+    {
+      "src": "^/$",
+      "dest": "/registro-imoveis-web/index.html"
+    },
+    {
+      "src": "^(.*)$",
+      "dest": "/registro-imoveis-web/$1"
+    }
   ]
 }
