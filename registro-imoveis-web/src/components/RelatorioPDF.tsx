@@ -1,7 +1,7 @@
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import type { Vistoria } from '../types/vistoria';
 
-const logoBase64 = 'src/assets/logo_rodape.png'; // Substitua pelo caminho correto da sua imagem
+const logoBase64 = 'registro-imoveis-web/src/assets/logo_rodape.png';
 
 // Estilos específicos para o PDF (parecido com CSS, mas próprio para impressão)
 const styles = StyleSheet.create({
