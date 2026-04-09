@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "build": "cd registro-imoveis-web && npm install && npm run build",
+    "dev": "cd registro-imoveis-web && npm run dev"
+  },
   "dependencies": {
     "firebase": "^12.10.0"
   }
