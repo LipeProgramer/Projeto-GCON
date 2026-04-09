@@ -9,9 +9,10 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: 'bold', marginBottom: 4, color: '#333' },
   value: { fontSize: 12, marginBottom: 8, lineHeight: 1.5 },
   divisor: { borderBottom: '1px solid #ccc', marginVertical: 15 },
+  ambienteTitle: { fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#0056b3' },
   fotosContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
   fotoWrapper: { width: '48%', marginBottom: 10 },
-  foto: { width: '100%', height: 200, objectFit: 'cover' }
+  foto: { width: '100%', height: 150, objectFit: 'cover' }
 });
 
 interface Props {
@@ -20,6 +21,8 @@ interface Props {
 
 // Este é o "desenho" da folha A4
 export function RelatorioPDF({ vistoria }: Props) {
+  const ambientes = vistoria.ambientes ?? [];
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -27,12 +30,22 @@ export function RelatorioPDF({ vistoria }: Props) {
         
         <View style={styles.section}>
           <Text style={styles.label}>Título da Vistoria:</Text>
-          <Text style={styles.value}>{vistoria.titulo}</Text>
+          <Text style={styles.value}>{vistoria.nomeProjeto}</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.label}>Processo SEI:</Text>
+          <Text style={styles.value}>{vistoria.processoSei}</Text>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.label}>Endereço:</Text>
           <Text style={styles.value}>{vistoria.endereco}</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.label}>Secretaria:</Text>
+          <Text style={styles.value}>{vistoria.secretaria}</Text>
         </View>
 
         <View style={styles.section}>
@@ -49,15 +62,18 @@ export function RelatorioPDF({ vistoria }: Props) {
 
         <View style={styles.divisor} />
 
-        <Text style={styles.label}>Registo Fotográfico:</Text>
-        <View style={styles.fotosContainer}>
-          {/* Percorre a lista de fotos e coloca-as lado a lado no PDF */}
-          {vistoria.fotos?.map((foto, index) => (
-            <View key={index} style={styles.fotoWrapper}>
-              <Image src={foto.url} style={styles.foto} />
+        {ambientes.map((ambiente, index) => (
+          <View key={ambiente.id} style={styles.section}>
+            <Text style={styles.ambienteTitle}>Ambiente {index + 1}: {ambiente.nome}</Text>
+            <View style={styles.fotosContainer}>
+              {ambiente.fotos.map((foto) => (
+                <View key={foto.id} style={styles.fotoWrapper}>
+                  <Image src={foto.dataUrl || foto.url} style={styles.foto} />
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
+          </View>
+        ))}
 
       </Page>
     </Document>

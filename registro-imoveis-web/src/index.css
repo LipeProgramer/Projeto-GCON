@@ -96,16 +96,26 @@ body {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 8px;
   font-family: inherit;
   font-size: 14px;
   background: #fff;
-  transition: border .2s;
+  transition: border .2s, box-shadow .2s;
+}
+
+.field textarea {
+  min-height: 70px;
+  resize: vertical;
 }
 
 .field input:focus, .field select:focus, .field textarea:focus {
   outline: none;
   border-color: var(--azul);
+  box-shadow: 0 0 0 4px rgba(43, 85, 135, 0.12);
+}
+
+.btn-secondary:hover {
+  opacity: 0.9;
 }
 
 .btn-primary {

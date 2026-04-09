@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { PDFDownloadLink } from '@react-pdf/renderer';
-import type { Vistoria, Ambiente, Foto } from '../types/vistoria';
+import type { Vistoria, Ambiente } from '../types/vistoria';
 import { salvarVistoriaNoFirebase } from '../services/vistoriaService';
 import { RelatorioPDF } from '../components/RelatorioPDF';
 import logoBranco from '../assets/logo_white.png';
@@ -31,11 +31,29 @@ export function NovaVistoria() {
     processoSei: '',
     endereco: '',
     secretaria: listaSecretariasDropdown[3], // Padrão SELOG
+    dataVistoria: '',
+    observacoes: '',
     ambientes: [],
   });
   
   const [aGuardar, setAGuardar] = useState(false);
   const [msgProcesso, setMsgProcesso] = useState({ text: "", color: "" });
+  const [erros, setErros] = useState<string[]>([]);
+
+  const getFileDataUrl = (file: File) => {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Falha ao ler imagem')); 
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  };
 
   const handleProcessoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let valor = e.target.value.replace(/\D/g, "");
@@ -84,29 +102,53 @@ export function NovaVistoria() {
     }
   };
 
-  const handleAdicionarFotos = (ambienteId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const arquivos = Array.from(e.target.files);
-      const novasFotos: Foto[] = arquivos.map((arquivo) => ({
-        id: crypto.randomUUID(),
-        url: URL.createObjectURL(arquivo),
-        file: arquivo,
-      }));
+  const handleAdicionarFotos = async (ambienteId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
 
-      setVistoria(prev => ({
-        ...prev,
-        ambientes: prev.ambientes?.map(amb => 
-          amb.id === ambienteId ? { ...amb, fotos: [...amb.fotos, ...novasFotos] } : amb
-        )
-      }));
+    const arquivos = Array.from(e.target.files);
+    const novasFotos = await Promise.all(arquivos.map(async (arquivo) => ({
+      id: crypto.randomUUID(),
+      url: URL.createObjectURL(arquivo),
+      dataUrl: await getFileDataUrl(arquivo),
+      file: arquivo,
+    })));
+
+    setVistoria(prev => ({
+      ...prev,
+      ambientes: prev.ambientes?.map(amb => 
+        amb.id === ambienteId ? { ...amb, fotos: [...amb.fotos, ...novasFotos] } : amb
+      )
+    }));
+  };
+
+  const validarFormulario = () => {
+    const errosAtuais: string[] = [];
+
+    if (!vistoria.nomeProjeto?.trim()) {
+      errosAtuais.push('Nome do projeto é obrigatório.');
     }
+    if (!vistoria.processoSei?.trim()) {
+      errosAtuais.push('Processo SEI é obrigatório.');
+    }
+    if (!vistoria.endereco?.trim()) {
+      errosAtuais.push('Endereço do imóvel é obrigatório.');
+    }
+    if (!vistoria.ambientes?.length) {
+      errosAtuais.push('Adicione pelo menos um ambiente.');
+    }
+    if (vistoria.processoSei && vistoria.processoSei.length < 22) {
+      errosAtuais.push('Processo SEI incompleto.');
+    }
+
+    setErros(errosAtuais);
+    return errosAtuais.length === 0;
   };
 
   const handleGuardar = async () => {
-    if (!vistoria.nomeProjeto || !vistoria.processoSei) {
-      alert("Por favor, preencha o Nome do Projeto e o Processo SEI.");
+    if (!validarFormulario()) {
       return;
     }
+
     try {
       setAGuardar(true);
       await salvarVistoriaNoFirebase(vistoria);
@@ -138,7 +180,7 @@ export function NovaVistoria() {
               <label>Processo</label>
               <input 
                 type="text" 
-                placeholder="Ex.: 01.04.00006064/2024.65"
+                placeholder="Ex.: 00.00.00000000/0000.00"
                 value={vistoria.processoSei}
                 onChange={handleProcessoChange}
               />
@@ -165,6 +207,26 @@ export function NovaVistoria() {
                   <option key={sec} value={sec}>{sec}</option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          <div className="grid2">
+            <div className="field">
+              <label>Data da vistoria</label>
+              <input
+                type="date"
+                value={vistoria.dataVistoria?.toString() ?? ''}
+                onChange={e => setVistoria({ ...vistoria, dataVistoria: e.target.value })}
+              />
+            </div>
+            <div className="field">
+              <label>Observações</label>
+              <textarea
+                rows={2}
+                placeholder="Anotações importantes"
+                value={vistoria.observacoes ?? ''}
+                onChange={e => setVistoria({ ...vistoria, observacoes: e.target.value })}
+              />
             </div>
           </div>
 
@@ -212,22 +274,57 @@ export function NovaVistoria() {
         </div>
 
         {/* ÁREA DOS AMBIENTES */}
+        {erros.length > 0 && (
+          <div className="card" style={{ borderLeft: '4px solid #d9534f' }}>
+            <strong style={{ color: '#b91c1c' }}>Corrija os seguintes itens:</strong>
+            <ul style={{ margin: '10px 0 0', paddingLeft: 20, color: '#7f1d1d' }}>
+              {erros.map((erro, index) => <li key={index}>{erro}</li>)}
+            </ul>
+          </div>
+        )}
+
         {vistoria.ambientes?.map((ambiente) => (
-          <div key={ambiente.id} style={{ borderLeft: '6px solid var(--verde)', background: '#fff', border: '1px solid var(--border)', borderRadius: '12px', padding: '15px', marginTop: '15px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div key={ambiente.id} className="card" style={{ borderLeft: '6px solid var(--verde)', padding: '18px', marginTop: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
               <h3 style={{ margin: 0, color: 'var(--azul)' }}>{ambiente.nome}</h3>
-              <label style={{ background: '#e5e7eb', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                📸 Anexar Fotos
-                <input type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={(e) => handleAdicionarFotos(ambiente.id, e)} />
-              </label>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <label className="btn-secondary" style={{ cursor: 'pointer', padding: '10px 14px' }}>
+                  📸 Anexar Fotos
+                  <input type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={(e) => handleAdicionarFotos(ambiente.id, e)} />
+                </label>
+                <button type="button" className="btn-secondary" onClick={() => setVistoria(prev => ({
+                  ...prev,
+                  ambientes: prev.ambientes?.filter(item => item.id !== ambiente.id) || []
+                }))}>
+                  Remover ambiente
+                </button>
+              </div>
             </div>
 
-            {ambiente.fotos.length > 0 && (
+            {ambiente.fotos.length > 0 ? (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '12px' }}>
                 {ambiente.fotos.map(foto => (
-                  <img key={foto.id} src={foto.url} alt="Preview" style={{ width: '120px', height: '90px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #ccc' }} />
+                  <div key={foto.id} style={{ position: 'relative', width: '120px', height: '90px' }}>
+                    <img src={foto.url} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', border: '1px solid #ccc' }} />
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ position: 'absolute', top: 6, right: 6, padding: '4px 8px', fontSize: '11px' }}
+                      onClick={() => setVistoria(prev => ({
+                        ...prev,
+                        ambientes: prev.ambientes?.map(item => item.id === ambiente.id ? {
+                          ...item,
+                          fotos: item.fotos.filter(f => f.id !== foto.id)
+                        } : item) || []
+                      }))}
+                    >
+                      ×
+                    </button>
+                  </div>
                 ))}
               </div>
+            ) : (
+              <div style={{ marginTop: '12px', color: 'var(--muted)', fontSize: '13px' }}>Nenhuma foto anexada ainda.</div>
             )}
           </div>
         ))}
