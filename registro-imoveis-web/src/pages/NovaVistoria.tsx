@@ -35,7 +35,7 @@ const initialVistoriaState: Partial<Vistoria> = {
   nomeProjeto: '',
   processoSei: '',
   endereco: '',
-  secretaria: listaSecretariasDropdown[3], // Padrão SELOG
+  secretaria: listaSecretariasDropdown[3],
   dataVistoria: '',
   observacoes: '',
   ambientes: [],
@@ -43,31 +43,10 @@ const initialVistoriaState: Partial<Vistoria> = {
 
 function formatarData(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
   });
-}
-
-function obterDraftSerializado(vistoriaState: Partial<Vistoria>) {
-  return {
-    id: (vistoriaState as any).id || crypto.randomUUID(),
-    nomeProjeto: vistoriaState.nomeProjeto || 'Projeto sem nome',
-    processoSei: vistoriaState.processoSei || '',
-    endereco: vistoriaState.endereco || '',
-    secretaria: vistoriaState.secretaria || listaSecretariasDropdown[3],
-    dataVistoria: vistoriaState.dataVistoria || '',
-    observacoes: vistoriaState.observacoes || '',
-    ambientes: (vistoriaState.ambientes || []).map((ambiente) => ({
-      id: ambiente.id,
-      nome: ambiente.nome,
-      fotos: (ambiente.fotos || []).map((foto) => ({
-        id: foto.id,
-        url: foto.dataUrl || foto.url || '',
-        dataUrl: foto.dataUrl || foto.url || '',
-        descricao: foto.descricao || '',
-      })),
-    })),
-    modifiedAt: new Date().toISOString(),
-  } as SavedProjeto;
 }
 
 const carregarDraftsDoStorage = (): SavedProjeto[] => {
@@ -100,27 +79,30 @@ export function NovaVistoria() {
     if (!vistoria.nomeProjeto?.trim()) return;
 
     const timer = window.setTimeout(() => {
-      const draft = obterDraftSerializado(vistoria);
+      const draft: SavedProjeto = {
+        id: (vistoria as any).id || crypto.randomUUID(),
+        nomeProjeto: vistoria.nomeProjeto || 'Projeto sem nome',
+        processoSei: vistoria.processoSei || '',
+        endereco: vistoria.endereco || '',
+        secretaria: vistoria.secretaria || listaSecretariasDropdown[3],
+        dataVistoria: vistoria.dataVistoria || '',
+        observacoes: vistoria.observacoes || '',
+        ambientes: (vistoria.ambientes || []).map((amb) => ({
+          id: amb.id,
+          nome: amb.nome,
+          fotos: [],
+        })),
+        modifiedAt: new Date().toISOString(),
+      };
+
       const draftsAtuais = carregarDraftsDoStorage();
-      
-      // Procura se já existe um projeto com o mesmo nome
-      const indexExistente = draftsAtuais.findIndex(
-        item => item.nomeProjeto === draft.nomeProjeto
-      );
+      const indexExistente = draftsAtuais.findIndex((item) => item.nomeProjeto === draft.nomeProjeto);
 
       let atualizados: SavedProjeto[];
-      
       if (indexExistente >= 0) {
-        // Se existe, atualiza apenas o timestamp e dados
-        draftsAtuais[indexExistente] = {
-          ...draftsAtuais[indexExistente],
-          ...draft,
-          id: draftsAtuais[indexExistente].id, // Mantém o ID original
-          modifiedAt: new Date().toISOString(), // Atualiza timestamp
-        };
+        draftsAtuais[indexExistente] = draft;
         atualizados = draftsAtuais;
       } else {
-        // Se não existe, cria novo
         atualizados = [draft, ...draftsAtuais];
       }
 
@@ -131,104 +113,6 @@ export function NovaVistoria() {
 
     return () => window.clearTimeout(timer);
   }, [vistoria]);
-
-  const salvarRascunhoLocal = () => {
-    try {
-      if (!vistoria.nomeProjeto?.trim()) {
-        setStatusMensagem('Nome do projeto é obrigatório.');
-        return;
-      }
-
-      const drafts = carregarDraftsDoStorage();
-
-      // Procura se já existe um projeto com o mesmo nome
-      const indexExistente = drafts.findIndex(item => item.nomeProjeto === vistoria.nomeProjeto);
-      
-      const projeto: SavedProjeto = {
-        id: indexExistente >= 0 ? drafts[indexExistente].id : (vistoria as any).id || crypto.randomUUID(),
-        nomeProjeto: vistoria.nomeProjeto || 'Projeto sem nome',
-        processoSei: vistoria.processoSei || '',
-        endereco: vistoria.endereco || '',
-        secretaria: vistoria.secretaria || listaSecretariasDropdown[3],
-        dataVistoria: vistoria.dataVistoria || '',
-        observacoes: vistoria.observacoes || '',
-        ambientes: (vistoria.ambientes || []).map(amb => ({
-          id: amb.id,
-          nome: amb.nome,
-          fotos: (amb.fotos || []).map(foto => ({
-            id: foto.id,
-            url: foto.dataUrl || foto.url || '',
-            dataUrl: foto.dataUrl || foto.url || '',
-            descricao: foto.descricao || '',
-          })),
-        })),
-        modifiedAt: new Date().toISOString(),
-      } as SavedProjeto;
-
-      if (indexExistente >= 0) {
-        // Se existe, substitui mantendo o ID
-        drafts[indexExistente] = projeto;
-      } else {
-        // Se não existe, adiciona novo
-        drafts.unshift(projeto); // Adiciona no início
-      }
-
-      // Salva no localStorage
-      window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(drafts));
-      
-      // Atualiza o estado
-      setSalvos(drafts.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
-      setStatusMensagem('✅ Projeto salvo com sucesso no rascunho!');
-      
-      console.log('Projeto salvo:', projeto);
-      console.log('Total de projetos salvos:', drafts.length);
-    } catch (erro) {
-      console.error('Erro ao salvar rascunho:', erro);
-      setStatusMensagem('❌ Erro ao salvar o projeto.');
-    }
-  };
-
-  const carregarProjetoSalvo = (projeto: SavedProjeto) => {
-    try {
-      setVistoria({
-        id: projeto.id,
-        nomeProjeto: projeto.nomeProjeto,
-        processoSei: projeto.processoSei,
-        endereco: projeto.endereco,
-        secretaria: projeto.secretaria,
-        dataVistoria: projeto.dataVistoria,
-        observacoes: projeto.observacoes,
-        ambientes: projeto.ambientes || [],
-      });
-      setStatusMensagem('✅ Projeto carregado com sucesso!');
-      console.log('Projeto carregado:', projeto);
-    } catch (erro) {
-      console.error('Erro ao carregar projeto:', erro);
-      setStatusMensagem('❌ Erro ao carregar o projeto.');
-    }
-  };
-
-  const excluirProjetoSalvo = (id: string) => {
-    try {
-      const drafts = carregarDraftsDoStorage();
-      const novosDrafts = drafts.filter(item => item.id !== id);
-      window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(novosDrafts));
-      setSalvos(novosDrafts.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
-      setStatusMensagem('✅ Projeto excluído com sucesso!');
-    } catch (erro) {
-      console.error('Erro ao excluir projeto:', erro);
-      setStatusMensagem('❌ Erro ao excluir o projeto.');
-    }
-  };
-
-  const agruparPorData = (itens: SavedProjeto[]) => {
-    return itens.reduce<Record<string, SavedProjeto[]>>((acc, projeto) => {
-      const data = formatarData(projeto.modifiedAt);
-      if (!acc[data]) acc[data] = [];
-      acc[data].push(projeto);
-      return acc;
-    }, {});
-  };
 
   const getFileDataUrl = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -248,27 +132,17 @@ export function NovaVistoria() {
     if (valor.length > 16) valor = valor.replace(/^(\d{2})\.(\d{2})\.(\d{8})\/(\d{4})(\d)/, "$1.$2.$3/$4.$5");
     if (valor.length > 22) valor = valor.substring(0, 22);
 
-    const valorFormatado = valor
-      .replace(/^(\d{2})(\d)/, "$1.$2")
-      .replace(/^(\d{2})\.(\d{2})(\d)/, "$1.$2.$3")
-      .replace(/^(\d{2})\.(\d{2})\.(\d{8})(\d)/, "$1.$2.$3/$4")
-      .replace(/^(\d{2})\.(\d{2})\.(\d{8})\/(\d{4})(\d)/, "$1.$2.$3/$4.$5");
+    setVistoria((prev) => ({ ...prev, processoSei: valor }));
 
-    setVistoria(prev => ({ ...prev, processoSei: valorFormatado }));
-
-    if (valorFormatado.length >= 5) {
-      const partes = valorFormatado.split(".");
+    if (valor.length >= 5) {
+      const partes = valor.split(".");
       const orgao = partes[0];
       const secretaria = partes[1];
-      const resto = valorFormatado.split("/")[1] ?? "";
-      const ano = resto.length >= 4 ? Number(resto.slice(0, 4)) : null;
 
       if (!orgaosValidos[orgao]) {
         setMsgProcesso({ text: `❌ Órgão inválido`, color: "#d9534f" });
       } else if (!secretariasValidas[secretaria]) {
         setMsgProcesso({ text: `❌ Secretaria desconhecida`, color: "#d9534f" });
-      } else if (ano !== null && ano < 2020) {
-        setMsgProcesso({ text: `❌ Ano deve ser 2020 ou posterior`, color: "#d9534f" });
       } else {
         const nomeSec = secretariasValidas[secretaria];
         setMsgProcesso({ text: `✅ ${nomeSec}`, color: "#009639" });
@@ -282,7 +156,7 @@ export function NovaVistoria() {
     const nome = prompt("Nome do ambiente (Ex: Fachada, Sala):");
     if (nome) {
       const novoAmbiente: Ambiente = { id: crypto.randomUUID(), nome, fotos: [] };
-      setVistoria(prev => ({ ...prev, ambientes: [...(prev.ambientes || []), novoAmbiente] }));
+      setVistoria((prev) => ({ ...prev, ambientes: [...(prev.ambientes || []), novoAmbiente] }));
     }
   };
 
@@ -303,47 +177,45 @@ export function NovaVistoria() {
         })
       );
 
-      setVistoria(prev => ({
+      setVistoria((prev) => ({
         ...prev,
-        ambientes: prev.ambientes?.map(amb => 
-          amb.id === ambienteId 
-            ? { ...amb, fotos: [...(amb.fotos || []), ...novasFotos] } 
+        ambientes: prev.ambientes?.map((amb) =>
+          amb.id === ambienteId
+            ? { ...amb, fotos: [...(amb.fotos || []), ...novasFotos] }
             : amb
-        ) || []
+        ) || [],
       }));
     } catch (erro) {
       console.error('Erro ao adicionar fotos:', erro);
       setStatusMensagem('Erro ao adicionar fotos. Tente novamente.');
     }
-    
-    // Limpar o input para permitir reusar
+
     e.target.value = '';
   };
 
-  const validarFormulario = () => {
-    const errosAtuais: string[] = [];
+  const validarFormulario = (): boolean => {
+    const erros: string[] = [];
 
     if (!vistoria.nomeProjeto?.trim()) {
-      errosAtuais.push('Nome do projeto é obrigatório.');
+      erros.push('Nome do projeto é obrigatório.');
     }
     if (!vistoria.processoSei?.trim()) {
-      errosAtuais.push('Processo SEI é obrigatório.');
+      erros.push('Processo SEI é obrigatório.');
     }
     if (!vistoria.endereco?.trim()) {
-      errosAtuais.push('Endereço do imóvel é obrigatório.');
+      erros.push('Endereço do imóvel é obrigatório.');
     }
     if (!vistoria.ambientes?.length) {
-      errosAtuais.push('Adicione pelo menos um ambiente.');
+      erros.push('Adicione pelo menos um ambiente.');
     }
     if (vistoria.processoSei && vistoria.processoSei.length < 22) {
-      errosAtuais.push('Processo SEI incompleto.');
+      erros.push('Processo SEI incompleto.');
     }
 
-    if (errosAtuais.length > 0) {
-      setStatusMensagem(errosAtuais.join('; '));
+    if (erros.length > 0) {
+      setStatusMensagem(erros.join('; '));
       return false;
     }
-    setStatusMensagem('');
     return true;
   };
 
@@ -354,14 +226,84 @@ export function NovaVistoria() {
 
     try {
       setAGuardar(true);
+      setStatusMensagem('⏳ Salvando projeto...');
+
       await salvarVistoriaNoFirebase(vistoria);
-      alert(`Projeto "${vistoria.nomeProjeto}" salvo com sucesso!`);
+
+      const drafts = carregarDraftsDoStorage();
+      const indexExistente = drafts.findIndex((item) => item.nomeProjeto === vistoria.nomeProjeto);
+
+      const projeto: SavedProjeto = {
+        id: (vistoria as any).id || crypto.randomUUID(),
+        nomeProjeto: vistoria.nomeProjeto || 'Projeto sem nome',
+        processoSei: vistoria.processoSei || '',
+        endereco: vistoria.endereco || '',
+        secretaria: vistoria.secretaria || listaSecretariasDropdown[3],
+        dataVistoria: vistoria.dataVistoria || '',
+        observacoes: vistoria.observacoes || '',
+        ambientes: (vistoria.ambientes || []).map((amb) => ({
+          id: amb.id,
+          nome: amb.nome,
+          fotos: [],
+        })),
+        modifiedAt: new Date().toISOString(),
+      };
+
+      if (indexExistente >= 0) {
+        drafts[indexExistente] = projeto;
+      } else {
+        drafts.unshift(projeto);
+      }
+
+      window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(drafts));
+      setSalvos(drafts.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
+
+      setStatusMensagem(`✅ Projeto "${vistoria.nomeProjeto}" salvo com sucesso!`);
+
+      setTimeout(() => {
+        setVistoria({
+          ...initialVistoriaState,
+          id: crypto.randomUUID(),
+        });
+      }, 1500);
     } catch (erro) {
       console.error(erro);
-      alert("Erro ao salvar.");
+      setStatusMensagem('❌ Erro ao salvar. Tente novamente.');
     } finally {
       setAGuardar(false);
     }
+  };
+
+  const carregarProjetoSalvo = (projeto: SavedProjeto) => {
+    setVistoria({
+      id: projeto.id,
+      nomeProjeto: projeto.nomeProjeto,
+      processoSei: projeto.processoSei,
+      endereco: projeto.endereco,
+      secretaria: projeto.secretaria,
+      dataVistoria: projeto.dataVistoria,
+      observacoes: projeto.observacoes,
+      ambientes: projeto.ambientes || [],
+    });
+    setStatusMensagem('✅ Projeto carregado! Adicione as fotos novamente.');
+    setMostrarListaProjetos(false);
+  };
+
+  const excluirProjetoSalvo = (id: string) => {
+    const drafts = carregarDraftsDoStorage();
+    const novosDrafts = drafts.filter((item) => item.id !== id);
+    window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(novosDrafts));
+    setSalvos(novosDrafts.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
+    setStatusMensagem('✅ Projeto excluído!');
+  };
+
+  const agruparPorData = (itens: SavedProjeto[]): Record<string, SavedProjeto[]> => {
+    return itens.reduce<Record<string, SavedProjeto[]>>((acc, projeto) => {
+      const data = formatarData(projeto.modifiedAt);
+      if (!acc[data]) acc[data] = [];
+      acc[data].push(projeto);
+      return acc;
+    }, {});
   };
 
   return (
@@ -377,37 +319,43 @@ export function NovaVistoria() {
       <div className="container">
         <div className="card">
           <h2>Identificação</h2>
-          
+
           <div className="grid3">
             <div className="field">
               <label>Processo</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Ex.: 00.00.00000000/0000.00"
                 value={vistoria.processoSei}
                 onChange={handleProcessoChange}
               />
-              {msgProcesso.text && <span style={{ color: msgProcesso.color, fontSize: '11px', marginTop: '2px' }}>{msgProcesso.text}</span>}
+              {msgProcesso.text && (
+                <span style={{ color: msgProcesso.color, fontSize: '11px', marginTop: '2px' }}>
+                  {msgProcesso.text}
+                </span>
+              )}
             </div>
 
             <div className="field">
               <label>Imóvel</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Ex.: Cadastro / Endereço"
                 value={vistoria.endereco}
-                onChange={e => setVistoria({...vistoria, endereco: e.target.value})}
+                onChange={(e) => setVistoria({ ...vistoria, endereco: e.target.value })}
               />
             </div>
 
             <div className="field">
               <label>Secretaria</label>
-              <select 
+              <select
                 value={vistoria.secretaria}
-                onChange={e => setVistoria({...vistoria, secretaria: e.target.value})}
+                onChange={(e) => setVistoria({ ...vistoria, secretaria: e.target.value })}
               >
-                {listaSecretariasDropdown.map(sec => (
-                  <option key={sec} value={sec}>{sec}</option>
+                {listaSecretariasDropdown.map((sec) => (
+                  <option key={sec} value={sec}>
+                    {sec}
+                  </option>
                 ))}
               </select>
             </div>
@@ -419,7 +367,7 @@ export function NovaVistoria() {
               <input
                 type="date"
                 value={vistoria.dataVistoria?.toString() ?? ''}
-                onChange={e => setVistoria({ ...vistoria, dataVistoria: e.target.value })}
+                onChange={(e) => setVistoria({ ...vistoria, dataVistoria: e.target.value })}
               />
             </div>
             <div className="field">
@@ -428,29 +376,38 @@ export function NovaVistoria() {
                 rows={2}
                 placeholder="Anotações importantes"
                 value={vistoria.observacoes ?? ''}
-                onChange={e => setVistoria({ ...vistoria, observacoes: e.target.value })}
+                onChange={(e) => setVistoria({ ...vistoria, observacoes: e.target.value })}
               />
             </div>
           </div>
 
           <div className="toolbar">
-            <input 
-              type="text" 
-              placeholder="Nome do projeto (obrigatório p/ salvar)" 
+            <input
+              type="text"
+              placeholder="Nome do projeto (obrigatório)"
               style={{ flex: 1, minWidth: '260px' }}
               value={vistoria.nomeProjeto}
-              onChange={e => setVistoria({...vistoria, nomeProjeto: e.target.value})}
+              onChange={(e) => setVistoria({ ...vistoria, nomeProjeto: e.target.value })}
             />
-            <button type="button" className="btn-secondary" onClick={() => setMostrarListaProjetos(true)}>Carregar Projeto</button>
-            <button type="button" className="btn-secondary" onClick={salvarRascunhoLocal}>Salvar Rascunho</button>
-            <button type="button" className="btn-ok" onClick={adicionarAmbiente}>Adicionar Ambiente</button>
-            <button type="button" className="btn-secondary" onClick={handleGuardar} disabled={aGuardar}>
-              {aGuardar ? 'Salvando...' : 'Salvar Projeto'}
+            <button type="button" className="btn-secondary" onClick={() => setMostrarListaProjetos(true)}>
+              Carregar Projeto
+            </button>
+            <button type="button" className="btn-ok" onClick={adicionarAmbiente}>
+              Adicionar Ambiente
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleGuardar}
+              disabled={aGuardar}
+              style={{ background: aGuardar ? '#ccc' : 'var(--azul)', color: '#fff' }}
+            >
+              {aGuardar ? '⏳ Salvando...' : '💾 Salvar Projeto'}
             </button>
             {vistoria.nomeProjeto && vistoria.ambientes?.length ? (
               <PDFDownloadLink
                 document={<RelatorioPDF vistoria={vistoria} />}
-                fileName={`${vistoria.nomeProjeto.replace(/\s+/g, '_') || 'vistoria'}.pdf`}
+                fileName={`${vistoria.nomeProjeto.replace(/\s+/g, '_')}.pdf`}
                 style={{
                   padding: '10px 18px',
                   borderRadius: '8px',
@@ -460,25 +417,19 @@ export function NovaVistoria() {
                   fontWeight: 'bold',
                 }}
               >
-                {({ loading }) => (loading ? 'Gerando PDF...' : 'Gerar PDF')}
+                {({ loading }) => (loading ? 'Gerando PDF...' : '📄 Gerar PDF')}
               </PDFDownloadLink>
             ) : (
-              <button
-                type="button"
-                className="btn-primary"
-                style={{ background: 'var(--azul)' }}
-                disabled
-              >
-                Gerar PDF
+              <button type="button" className="btn-primary" style={{ background: '#ccc' }} disabled>
+                📄 Gerar PDF
               </button>
             )}
           </div>
           <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>
-            Os projetos serão salvos no banco de dados na nuvem (Firebase).
+            ✅ Clique em "Salvar Projeto" para salvar TUDO na nuvem.
           </div>
         </div>
 
-        {/* ÁREA DOS AMBIENTES */}
         {statusMensagem && (
           <div className="card" style={{ borderLeft: '4px solid var(--verde)' }}>
             <span>{statusMensagem}</span>
@@ -509,18 +460,42 @@ export function NovaVistoria() {
         )}
 
         {vistoria.ambientes?.map((ambiente) => (
-          <div key={ambiente.id} className="card" style={{ borderLeft: '6px solid var(--verde)', padding: '18px', marginTop: '15px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+          <div
+            key={ambiente.id}
+            className="card"
+            style={{ borderLeft: '6px solid var(--verde)', padding: '18px', marginTop: '15px' }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+                alignItems: 'center',
+              }}
+            >
               <h3 style={{ margin: 0, color: 'var(--azul)' }}>{ambiente.nome}</h3>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <label className="btn-secondary" style={{ cursor: 'pointer', padding: '10px 14px' }}>
                   📸 Anexar Fotos
-                  <input type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={(e) => handleAdicionarFotos(ambiente.id, e)} />
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => handleAdicionarFotos(ambiente.id, e)}
+                  />
                 </label>
-                <button type="button" className="btn-secondary" onClick={() => setVistoria(prev => ({
-                  ...prev,
-                  ambientes: prev.ambientes?.filter(item => item.id !== ambiente.id) || []
-                }))}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() =>
+                    setVistoria((prev) => ({
+                      ...prev,
+                      ambientes: prev.ambientes?.filter((item) => item.id !== ambiente.id) || [],
+                    }))
+                  }
+                >
                   Remover ambiente
                 </button>
               </div>
@@ -528,20 +503,33 @@ export function NovaVistoria() {
 
             {ambiente.fotos.length > 0 ? (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '12px' }}>
-                {ambiente.fotos.map(foto => (
+                {ambiente.fotos.map((foto) => (
                   <div key={foto.id} style={{ position: 'relative', width: '120px', height: '90px' }}>
-                    <img src={foto.url} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', border: '1px solid #ccc' }} />
+                    <img
+                      src={foto.url}
+                      alt="Preview"
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        borderRadius: '8px',
+                        border: '1px solid #ccc',
+                      }}
+                    />
                     <button
                       type="button"
                       className="btn-secondary"
                       style={{ position: 'absolute', top: 6, right: 6, padding: '4px 8px', fontSize: '11px' }}
-                      onClick={() => setVistoria(prev => ({
-                        ...prev,
-                        ambientes: prev.ambientes?.map(item => item.id === ambiente.id ? {
-                          ...item,
-                          fotos: item.fotos.filter(f => f.id !== foto.id)
-                        } : item) || []
-                      }))}
+                      onClick={() =>
+                        setVistoria((prev) => ({
+                          ...prev,
+                          ambientes: prev.ambientes?.map((item) =>
+                            item.id === ambiente.id
+                              ? { ...item, fotos: item.fotos.filter((f) => f.id !== foto.id) }
+                              : item
+                          ) || [],
+                        }))
+                      }
                     >
                       ×
                     </button>
@@ -549,11 +537,12 @@ export function NovaVistoria() {
                 ))}
               </div>
             ) : (
-              <div style={{ marginTop: '12px', color: 'var(--muted)', fontSize: '13px' }}>Nenhuma foto anexada ainda.</div>
+              <div style={{ marginTop: '12px', color: 'var(--muted)', fontSize: '13px' }}>
+                Nenhuma foto anexada ainda.
+              </div>
             )}
           </div>
         ))}
-
       </div>
     </div>
   );
