@@ -47,12 +47,6 @@ function formatarData(iso: string) {
   });
 }
 
-function formatarHorario(iso: string) {
-  return new Date(iso).toLocaleTimeString('pt-BR', {
-    hour: '2-digit', minute: '2-digit',
-  });
-}
-
 function obterDraftSerializado(vistoriaState: Partial<Vistoria>) {
   return {
     id: crypto.randomUUID(),
@@ -91,11 +85,11 @@ function carregarDraftsDoStorage(): SavedProjeto[] {
 export function NovaVistoria() {
   const [vistoria, setVistoria] = useState<Partial<Vistoria>>(initialVistoriaState);
   const [salvos, setSalvos] = useState<SavedProjeto[]>([]);
-  const [mostrarListaProjetos, setMostrarListaProjetos] = useState(false);
   const [statusMensagem, setStatusMensagem] = useState('');
   const [aGuardar, setAGuardar] = useState(false);
   const [msgProcesso, setMsgProcesso] = useState({ text: '', color: '' });
   const [erros, setErros] = useState<string[]>([]);
+  const [mostrarListaProjetos, setMostrarListaProjetos] = useState(false); // Adicione este estado, pois é usado em carregarProjetoSalvo
 
   useEffect(() => {
     setSalvos(carregarDraftsDoStorage().sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
