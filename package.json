@@ -4,6 +4,11 @@
     "dev": "cd registro-imoveis-web && npm run dev"
   },
   "dependencies": {
-    "firebase": "^12.10.0"
+    "browser-image-compression": "^2.0.2",
+    "firebase": "^12.10.0",
+    "react-dropzone": "^15.0.0"
+  },
+  "devDependencies": {
+    "@types/react-dropzone": "^4.2.2"
   }
 }

@@ -5,6 +5,8 @@ import { salvarVistoriaNoFirebase } from '../services/vistoriaService';
 import { RelatorioPDF } from '../components/RelatorioPDF';
 import logoBranco from '../assets/logo_white.png';
 import "../App.css";
+import { useDropzone } from "react-dropzone";
+import imageCompression from "browser-image-compression";
 
 const LOCAL_DRAFTS_KEY = 'registro-gcon-drafts';
 
@@ -239,6 +241,32 @@ export function NovaVistoria() {
     }
   };
 
+  async function handleDrop(files: File[], ambId: number) {
+    const comprimidas = await Promise.all(
+      files.map((f) =>
+        imageCompression(f, {
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 1280,
+        })
+      )
+    );
+  }
+
+  function Drop({ ambId }: any) {
+    const { getRootProps, getInputProps } = useDropzone({
+      onDrop: (files: File[]) => handleDrop(files, ambId),
+    });
+
+    return (
+      <div {...getRootProps()} className="drop">
+        <input {...getInputProps()} />
+        <p>Arraste ou clique</p>
+      </div>
+    );
+  }
+
+
+
   const carregarProjetoSalvo = (projeto: SavedProjeto) => {
     setVistoria({
       id: projeto.id,
@@ -441,6 +469,8 @@ export function NovaVistoria() {
             >
               <h3 style={{ margin: 0, color: 'var(--azul)' }}>{ambiente.nome}</h3>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <Drop ambId={ambiente.id} />
+
                 <label className="btn-secondary" style={{ cursor: 'pointer', padding: '10px 14px' }}>
                   📸 Anexar Fotos
                   <input
