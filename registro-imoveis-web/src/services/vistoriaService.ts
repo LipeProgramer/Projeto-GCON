@@ -17,23 +17,33 @@ export async function salvarVistoriaNoFirebase(
       const fotosProcessadas = [] as Array<{ id: string; url: string; descricao?: string }>;
 
       for (const foto of ambiente.fotos) {
-        if (foto.file) {
-          const caminhoStorage = `vistorias/${Date.now()}_${foto.file.name}`;
-          const referenciaStorage = ref(storage, caminhoStorage);
-          await uploadBytes(referenciaStorage, foto.file);
-          const urlPublica = await getDownloadURL(referenciaStorage);
+        try {
+          if (foto.dataUrl) {
+            // Converter dataUrl para Blob
+            const response = await fetch(foto.dataUrl);
+            const blob = await response.blob();
+            
+            const caminhoStorage = `vistorias/${Date.now()}_${foto.id}.jpg`;
+            const referenciaStorage = ref(storage, caminhoStorage);
+            await uploadBytes(referenciaStorage, blob);
+            const urlPublica = await getDownloadURL(referenciaStorage);
 
-          fotosProcessadas.push({
-            id: foto.id,
-            url: urlPublica,
-            descricao: foto.descricao || "",
-          });
-        } else {
-          fotosProcessadas.push({
-            id: foto.id,
-            url: foto.url,
-            descricao: foto.descricao || "",
-          });
+            fotosProcessadas.push({
+              id: foto.id,
+              url: urlPublica,
+              descricao: foto.descricao || "",
+            });
+          } else if (foto.url) {
+            // Se já tem URL, usar direto
+            fotosProcessadas.push({
+              id: foto.id,
+              url: foto.url,
+              descricao: foto.descricao || "",
+            });
+          }
+        } catch (erroFoto) {
+          console.error(`Erro ao processar foto ${foto.id}:`, erroFoto);
+          throw new Error(`Falha ao fazer upload da foto: ${foto.id}`);
         }
       }
 
@@ -49,6 +59,8 @@ export async function salvarVistoriaNoFirebase(
       processoSei: vistoriaData.processoSei,
       endereco: vistoriaData.endereco,
       secretaria: vistoriaData.secretaria,
+      dataVistoria: vistoriaData.dataVistoria || null,
+      observacoes: vistoriaData.observacoes || "",
       ambientes: ambientesComFotos,
       dataCriacao: new Date(),
     };
