@@ -101,14 +101,36 @@ export function NovaVistoria() {
 
     const timer = window.setTimeout(() => {
       const draft = obterDraftSerializado(vistoria);
-      const atualizados = [draft, ...salvos.filter(item => item.id !== draft.id)];
+      const draftsAtuais = carregarDraftsDoStorage();
+      
+      // Procura se já existe um projeto com o mesmo nome
+      const indexExistente = draftsAtuais.findIndex(
+        item => item.nomeProjeto === draft.nomeProjeto
+      );
+
+      let atualizados: SavedProjeto[];
+      
+      if (indexExistente >= 0) {
+        // Se existe, atualiza apenas o timestamp e dados
+        draftsAtuais[indexExistente] = {
+          ...draftsAtuais[indexExistente],
+          ...draft,
+          id: draftsAtuais[indexExistente].id, // Mantém o ID original
+          modifiedAt: new Date().toISOString(), // Atualiza timestamp
+        };
+        atualizados = draftsAtuais;
+      } else {
+        // Se não existe, cria novo
+        atualizados = [draft, ...draftsAtuais];
+      }
+
       window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(atualizados));
       setSalvos(atualizados.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
       setStatusMensagem('Rascunho salvo automaticamente.');
     }, 700);
 
     return () => window.clearTimeout(timer);
-  }, [vistoria, salvos]);
+  }, [vistoria]);
 
   const salvarRascunhoLocal = () => {
     const drafts = carregarDraftsDoStorage();
