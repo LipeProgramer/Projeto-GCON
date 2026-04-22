@@ -75,45 +75,6 @@ export function NovaVistoria() {
     setSalvos(carregarDraftsDoStorage().sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
   }, []);
 
-  useEffect(() => {
-    if (!vistoria.nomeProjeto?.trim()) return;
-
-    const timer = window.setTimeout(() => {
-      const draft: SavedProjeto = {
-        id: (vistoria as any).id || crypto.randomUUID(),
-        nomeProjeto: vistoria.nomeProjeto || 'Projeto sem nome',
-        processoSei: vistoria.processoSei || '',
-        endereco: vistoria.endereco || '',
-        secretaria: vistoria.secretaria || listaSecretariasDropdown[3],
-        dataVistoria: vistoria.dataVistoria || '',
-        observacoes: vistoria.observacoes || '',
-        ambientes: (vistoria.ambientes || []).map((amb) => ({
-          id: amb.id,
-          nome: amb.nome,
-          fotos: [],
-        })),
-        modifiedAt: new Date().toISOString(),
-      };
-
-      const draftsAtuais = carregarDraftsDoStorage();
-      const indexExistente = draftsAtuais.findIndex((item) => item.nomeProjeto === draft.nomeProjeto);
-
-      let atualizados: SavedProjeto[];
-      if (indexExistente >= 0) {
-        draftsAtuais[indexExistente] = draft;
-        atualizados = draftsAtuais;
-      } else {
-        atualizados = [draft, ...draftsAtuais];
-      }
-
-      window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(atualizados));
-      setSalvos(atualizados.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
-      setStatusMensagem('Rascunho salvo automaticamente.');
-    }, 700);
-
-    return () => window.clearTimeout(timer);
-  }, [vistoria]);
-
   const getFileDataUrl = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -226,14 +187,13 @@ export function NovaVistoria() {
 
     try {
       setAGuardar(true);
-      setStatusMensagem('⏳ Salvando projeto...');
+      setStatusMensagem('⏳ Salvando projeto no servidor...');
 
+      // Salvar NO FIREBASE (com fotos)
       await salvarVistoriaNoFirebase(vistoria);
 
-      const drafts = carregarDraftsDoStorage();
-      const indexExistente = drafts.findIndex((item) => item.nomeProjeto === vistoria.nomeProjeto);
-
-      const projeto: SavedProjeto = {
+      // TAMBÉM salvar no localStorage como backup local
+      const draft: SavedProjeto = {
         id: (vistoria as any).id || crypto.randomUUID(),
         nomeProjeto: vistoria.nomeProjeto || 'Projeto sem nome',
         processoSei: vistoria.processoSei || '',
@@ -249,17 +209,21 @@ export function NovaVistoria() {
         modifiedAt: new Date().toISOString(),
       };
 
+      const draftsAtuais = carregarDraftsDoStorage();
+      const indexExistente = draftsAtuais.findIndex((item) => item.nomeProjeto === draft.nomeProjeto);
+
       if (indexExistente >= 0) {
-        drafts[indexExistente] = projeto;
+        draftsAtuais[indexExistente] = draft;
       } else {
-        drafts.unshift(projeto);
+        draftsAtuais.push(draft);
       }
 
-      window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(drafts));
-      setSalvos(drafts.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
+      window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(draftsAtuais));
+      setSalvos(draftsAtuais.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
 
       setStatusMensagem(`✅ Projeto "${vistoria.nomeProjeto}" salvo com sucesso!`);
 
+      // Limpar formulário após sucesso
       setTimeout(() => {
         setVistoria({
           ...initialVistoriaState,
@@ -267,8 +231,8 @@ export function NovaVistoria() {
         });
       }, 1500);
     } catch (erro) {
-      console.error(erro);
-      setStatusMensagem('❌ Erro ao salvar. Tente novamente.');
+      console.error('Erro ao salvar no Firebase:', erro);
+      setStatusMensagem('❌ Erro ao salvar. Verifique a conexão com o servidor.');
     } finally {
       setAGuardar(false);
     }
@@ -426,7 +390,7 @@ export function NovaVistoria() {
             )}
           </div>
           <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>
-            ✅ Clique em "Salvar Projeto" para salvar TUDO na nuvem.
+            ✅ Clique em "Salvar Projeto" para salvar TUDO no servidor (com fotos).
           </div>
         </div>
 
