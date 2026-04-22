@@ -135,21 +135,31 @@ export function NovaVistoria() {
   const salvarRascunhoLocal = () => {
     const drafts = carregarDraftsDoStorage();
 
+    // Procura se já existe um projeto com o mesmo nome
+    const indexExistente = drafts.findIndex(item => item.nomeProjeto === vistoria.nomeProjeto);
+    
     const projeto: SavedProjeto = {
-      ...(vistoria as SavedProjeto),
-      id: (vistoria as any).id || crypto.randomUUID?.() || `${Date.now()}`,
+      id: indexExistente >= 0 ? drafts[indexExistente].id : (vistoria as any).id || crypto.randomUUID(),
+      nomeProjeto: vistoria.nomeProjeto || 'Projeto sem nome',
+      processoSei: vistoria.processoSei || '',
+      endereco: vistoria.endereco || '',
+      secretaria: vistoria.secretaria || '',
+      dataVistoria: vistoria.dataVistoria || '',
+      observacoes: vistoria.observacoes || '',
+      ambientes: vistoria.ambientes || [],
       modifiedAt: new Date().toISOString(),
     } as SavedProjeto;
 
-    const index = drafts.findIndex(item => item.id === projeto.id);
-    if (index >= 0) {
-      drafts[index] = projeto;
+    if (indexExistente >= 0) {
+      // Se existe, substitui mantendo o ID
+      drafts[indexExistente] = projeto;
     } else {
+      // Se não existe, adiciona novo
       drafts.push(projeto);
     }
 
     window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(drafts));
-    setSalvos(drafts);
+    setSalvos(drafts.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
     setStatusMensagem('Projeto salvo com sucesso.');
   };
 
