@@ -49,7 +49,7 @@ function formatarData(iso: string) {
 
 function obterDraftSerializado(vistoriaState: Partial<Vistoria>) {
   return {
-    id: crypto.randomUUID(),
+    id: (vistoriaState as any).id || crypto.randomUUID(),
     nomeProjeto: vistoriaState.nomeProjeto || 'Projeto sem nome',
     processoSei: vistoriaState.processoSei || '',
     endereco: vistoriaState.endereco || '',
@@ -82,7 +82,10 @@ const carregarDraftsDoStorage = (): SavedProjeto[] => {
 };
 
 export function NovaVistoria() {
-  const [vistoria, setVistoria] = useState<Partial<Vistoria>>(initialVistoriaState);
+  const [vistoria, setVistoria] = useState<Partial<Vistoria>>({
+    ...initialVistoriaState,
+    id: crypto.randomUUID(),
+  });
   const [salvos, setSalvos] = useState<SavedProjeto[]>([]);
   const [statusMensagem, setStatusMensagem] = useState('');
   const [aGuardar, setAGuardar] = useState(false);
@@ -105,7 +108,7 @@ export function NovaVistoria() {
     }, 700);
 
     return () => window.clearTimeout(timer);
-  }, [vistoria]);
+  }, [vistoria, salvos]);
 
   const salvarRascunhoLocal = () => {
     const drafts = carregarDraftsDoStorage();
@@ -215,22 +218,37 @@ export function NovaVistoria() {
   };
 
   const handleAdicionarFotos = async (ambienteId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
+    if (!e.target.files || e.target.files.length === 0) return;
 
-    const arquivos = Array.from(e.target.files);
-    const novasFotos = await Promise.all(arquivos.map(async (arquivo) => ({
-      id: crypto.randomUUID(),
-      url: URL.createObjectURL(arquivo),
-      dataUrl: await getFileDataUrl(arquivo),
-      file: arquivo,
-    })));
+    try {
+      const arquivos = Array.from(e.target.files);
+      const novasFotos = await Promise.all(
+        arquivos.map(async (arquivo) => {
+          const dataUrl = await getFileDataUrl(arquivo);
+          return {
+            id: crypto.randomUUID(),
+            url: dataUrl,
+            dataUrl: dataUrl,
+            descricao: '',
+          };
+        })
+      );
 
-    setVistoria(prev => ({
-      ...prev,
-      ambientes: prev.ambientes?.map(amb => 
-        amb.id === ambienteId ? { ...amb, fotos: [...amb.fotos, ...novasFotos] } : amb
-      )
-    }));
+      setVistoria(prev => ({
+        ...prev,
+        ambientes: prev.ambientes?.map(amb => 
+          amb.id === ambienteId 
+            ? { ...amb, fotos: [...(amb.fotos || []), ...novasFotos] } 
+            : amb
+        ) || []
+      }));
+    } catch (erro) {
+      console.error('Erro ao adicionar fotos:', erro);
+      setStatusMensagem('Erro ao adicionar fotos. Tente novamente.');
+    }
+    
+    // Limpar o input para permitir reusar
+    e.target.value = '';
   };
 
   const validarFormulario = () => {
