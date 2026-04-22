@@ -88,7 +88,6 @@ export function NovaVistoria() {
   const [statusMensagem, setStatusMensagem] = useState('');
   const [aGuardar, setAGuardar] = useState(false);
   const [msgProcesso, setMsgProcesso] = useState({ text: '', color: '' });
-  const [erros, setErros] = useState<string[]>([]);
   const [mostrarListaProjetos, setMostrarListaProjetos] = useState(false); // Adicione este estado, pois é usado em carregarProjetoSalvo
 
   useEffect(() => {
@@ -257,8 +256,12 @@ export function NovaVistoria() {
       errosAtuais.push('Processo SEI incompleto.');
     }
 
-    setErros(errosAtuais);
-    return errosAtuais.length === 0;
+    if (errosAtuais.length > 0) {
+      setStatusMensagem(errosAtuais.join('; '));
+      return false;
+    }
+    setStatusMensagem('');
+    return true;
   };
 
   const handleGuardar = async () => {
@@ -355,6 +358,8 @@ export function NovaVistoria() {
               value={vistoria.nomeProjeto}
               onChange={e => setVistoria({...vistoria, nomeProjeto: e.target.value})}
             />
+            <button type="button" className="btn-secondary" onClick={() => setMostrarListaProjetos(true)}>Carregar Projeto</button>
+            <button type="button" className="btn-secondary" onClick={salvarRascunhoLocal}>Salvar Rascunho</button>
             <button type="button" className="btn-ok" onClick={adicionarAmbiente}>Adicionar Ambiente</button>
             <button type="button" className="btn-secondary" onClick={handleGuardar} disabled={aGuardar}>
               {aGuardar ? 'Salvando...' : 'Salvar Projeto'}
@@ -391,12 +396,32 @@ export function NovaVistoria() {
         </div>
 
         {/* ÁREA DOS AMBIENTES */}
-        {erros.length > 0 && (
-          <div className="card" style={{ borderLeft: '4px solid #d9534f' }}>
-            <strong style={{ color: '#b91c1c' }}>Corrija os seguintes itens:</strong>
-            <ul style={{ margin: '10px 0 0', paddingLeft: 20, color: '#7f1d1d' }}>
-              {erros.map((erro, index) => <li key={index}>{erro}</li>)}
-            </ul>
+        {statusMensagem && (
+          <div className="card" style={{ borderLeft: '4px solid var(--verde)' }}>
+            <span>{statusMensagem}</span>
+          </div>
+        )}
+
+        {mostrarListaProjetos && (
+          <div className="modal-overlay" onClick={() => setMostrarListaProjetos(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <h3>Projetos Salvos</h3>
+              {Object.entries(agruparPorData(salvos)).map(([data, projetos]) => (
+                <div key={data}>
+                  <h4>{data}</h4>
+                  <ul>
+                    {projetos.map((proj) => (
+                      <li key={proj.id}>
+                        <strong>{proj.nomeProjeto}</strong> - {new Date(proj.modifiedAt).toLocaleTimeString('pt-BR')}
+                        <button onClick={() => carregarProjetoSalvo(proj)}>Carregar</button>
+                        <button onClick={() => excluirProjetoSalvo(proj.id)}>Excluir</button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              <button onClick={() => setMostrarListaProjetos(false)}>Fechar</button>
+            </div>
           </div>
         )}
 
