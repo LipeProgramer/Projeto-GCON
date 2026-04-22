@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { salvarVistoriaNoFirebase } from '../services/vistoriaService';
 import type { Vistoria } from '../types/vistoria';
-import '../styles/NovaVistoria.css';
+import '../App.css';
 
 const LOCAL_DRAFTS_KEY = 'registro-gcon-drafts';
 
