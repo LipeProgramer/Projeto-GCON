@@ -4,6 +4,7 @@ import type { Vistoria, Ambiente } from '../types/vistoria';
 import { salvarVistoriaNoFirebase } from '../services/vistoriaService';
 import { RelatorioPDF } from '../components/RelatorioPDF';
 import logoBranco from '../assets/logo_white.png';
+import 'src/App.css';
 
 const LOCAL_DRAFTS_KEY = 'registro-gcon-drafts';
 
