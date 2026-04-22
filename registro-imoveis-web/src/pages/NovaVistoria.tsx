@@ -133,55 +133,92 @@ export function NovaVistoria() {
   }, [vistoria]);
 
   const salvarRascunhoLocal = () => {
-    const drafts = carregarDraftsDoStorage();
+    try {
+      if (!vistoria.nomeProjeto?.trim()) {
+        setStatusMensagem('Nome do projeto é obrigatório.');
+        return;
+      }
 
-    // Procura se já existe um projeto com o mesmo nome
-    const indexExistente = drafts.findIndex(item => item.nomeProjeto === vistoria.nomeProjeto);
-    
-    const projeto: SavedProjeto = {
-      id: indexExistente >= 0 ? drafts[indexExistente].id : (vistoria as any).id || crypto.randomUUID(),
-      nomeProjeto: vistoria.nomeProjeto || 'Projeto sem nome',
-      processoSei: vistoria.processoSei || '',
-      endereco: vistoria.endereco || '',
-      secretaria: vistoria.secretaria || '',
-      dataVistoria: vistoria.dataVistoria || '',
-      observacoes: vistoria.observacoes || '',
-      ambientes: vistoria.ambientes || [],
-      modifiedAt: new Date().toISOString(),
-    } as SavedProjeto;
+      const drafts = carregarDraftsDoStorage();
 
-    if (indexExistente >= 0) {
-      // Se existe, substitui mantendo o ID
-      drafts[indexExistente] = projeto;
-    } else {
-      // Se não existe, adiciona novo
-      drafts.push(projeto);
+      // Procura se já existe um projeto com o mesmo nome
+      const indexExistente = drafts.findIndex(item => item.nomeProjeto === vistoria.nomeProjeto);
+      
+      const projeto: SavedProjeto = {
+        id: indexExistente >= 0 ? drafts[indexExistente].id : (vistoria as any).id || crypto.randomUUID(),
+        nomeProjeto: vistoria.nomeProjeto || 'Projeto sem nome',
+        processoSei: vistoria.processoSei || '',
+        endereco: vistoria.endereco || '',
+        secretaria: vistoria.secretaria || listaSecretariasDropdown[3],
+        dataVistoria: vistoria.dataVistoria || '',
+        observacoes: vistoria.observacoes || '',
+        ambientes: (vistoria.ambientes || []).map(amb => ({
+          id: amb.id,
+          nome: amb.nome,
+          fotos: (amb.fotos || []).map(foto => ({
+            id: foto.id,
+            url: foto.dataUrl || foto.url || '',
+            dataUrl: foto.dataUrl || foto.url || '',
+            descricao: foto.descricao || '',
+          })),
+        })),
+        modifiedAt: new Date().toISOString(),
+      } as SavedProjeto;
+
+      if (indexExistente >= 0) {
+        // Se existe, substitui mantendo o ID
+        drafts[indexExistente] = projeto;
+      } else {
+        // Se não existe, adiciona novo
+        drafts.unshift(projeto); // Adiciona no início
+      }
+
+      // Salva no localStorage
+      window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(drafts));
+      
+      // Atualiza o estado
+      setSalvos(drafts.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
+      setStatusMensagem('✅ Projeto salvo com sucesso no rascunho!');
+      
+      console.log('Projeto salvo:', projeto);
+      console.log('Total de projetos salvos:', drafts.length);
+    } catch (erro) {
+      console.error('Erro ao salvar rascunho:', erro);
+      setStatusMensagem('❌ Erro ao salvar o projeto.');
     }
-
-    window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(drafts));
-    setSalvos(drafts.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
-    setStatusMensagem('Projeto salvo com sucesso.');
   };
 
   const carregarProjetoSalvo = (projeto: SavedProjeto) => {
-    setVistoria({
-      nomeProjeto: projeto.nomeProjeto,
-      processoSei: projeto.processoSei,
-      endereco: projeto.endereco,
-      secretaria: projeto.secretaria,
-      dataVistoria: projeto.dataVistoria,
-      observacoes: projeto.observacoes,
-      ambientes: projeto.ambientes,
-    });
-    setMostrarListaProjetos(false);
-    setStatusMensagem(`Projeto "${projeto.nomeProjeto}" carregado.`);
+    try {
+      setVistoria({
+        id: projeto.id,
+        nomeProjeto: projeto.nomeProjeto,
+        processoSei: projeto.processoSei,
+        endereco: projeto.endereco,
+        secretaria: projeto.secretaria,
+        dataVistoria: projeto.dataVistoria,
+        observacoes: projeto.observacoes,
+        ambientes: projeto.ambientes || [],
+      });
+      setStatusMensagem('✅ Projeto carregado com sucesso!');
+      console.log('Projeto carregado:', projeto);
+    } catch (erro) {
+      console.error('Erro ao carregar projeto:', erro);
+      setStatusMensagem('❌ Erro ao carregar o projeto.');
+    }
   };
 
   const excluirProjetoSalvo = (id: string) => {
-    const atualizados = salvos.filter(item => item.id !== id);
-    window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(atualizados));
-    setSalvos(atualizados);
-    setStatusMensagem('Projeto excluído da lista de rascunhos.');
+    try {
+      const drafts = carregarDraftsDoStorage();
+      const novosDrafts = drafts.filter(item => item.id !== id);
+      window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(novosDrafts));
+      setSalvos(novosDrafts.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
+      setStatusMensagem('✅ Projeto excluído com sucesso!');
+    } catch (erro) {
+      console.error('Erro ao excluir projeto:', erro);
+      setStatusMensagem('❌ Erro ao excluir o projeto.');
+    }
   };
 
   const agruparPorData = (itens: SavedProjeto[]) => {
