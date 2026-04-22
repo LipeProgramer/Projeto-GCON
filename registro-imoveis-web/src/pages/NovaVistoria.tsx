@@ -359,7 +359,7 @@ export function NovaVistoria() {
               onChange={e => setVistoria({...vistoria, nomeProjeto: e.target.value})}
             />
             <button type="button" className="btn-secondary" onClick={() => setMostrarListaProjetos(true)}>Carregar Projeto</button>
-            <button type="button" className="btn-secondary" onClick={salvarRascunhoLocal}>Salvar Rascunho</button>
+            <button type="button" className="btn-secondary" onClick={() => salvarRascunhoLocal(true)}>Salvar Rascunho</button>
             <button type="button" className="btn-ok" onClick={adicionarAmbiente}>Adicionar Ambiente</button>
             <button type="button" className="btn-secondary" onClick={handleGuardar} disabled={aGuardar}>
               {aGuardar ? 'Salvando...' : 'Salvar Projeto'}
