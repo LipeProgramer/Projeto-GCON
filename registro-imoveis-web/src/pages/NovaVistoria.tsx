@@ -1,11 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import type { Vistoria, Ambiente } from '../types/vistoria';
 import { salvarVistoriaNoFirebase } from '../services/vistoriaService';
 import { RelatorioPDF } from '../components/RelatorioPDF';
 import logoBranco from '../assets/logo_white.png';
 
-// --- VALIDAÇÃO DO SEI ---
+const LOCAL_DRAFTS_KEY = 'registro-gcon-drafts';
+
+interface SavedProjeto extends Vistoria {
+  id: string;
+  modifiedAt: string;
+}
+
 const orgaosValidos: Record<string, string> = {
   "01": "PMM - Prefeitura Municipal de Maringá",
   "03": "MGAPREV - Maringá Previdência",
@@ -25,20 +31,137 @@ const secretariasValidas: Record<string, string> = {
 
 const listaSecretariasDropdown = Object.values(secretariasValidas);
 
-export function NovaVistoria() {
-  const [vistoria, setVistoria] = useState<Partial<Vistoria>>({
-    nomeProjeto: '',
-    processoSei: '',
-    endereco: '',
-    secretaria: listaSecretariasDropdown[3], // Padrão SELOG
-    dataVistoria: '',
-    observacoes: '',
-    ambientes: [],
+const initialVistoriaState: Partial<Vistoria> = {
+  nomeProjeto: '',
+  processoSei: '',
+  endereco: '',
+  secretaria: listaSecretariasDropdown[3], // Padrão SELOG
+  dataVistoria: '',
+  observacoes: '',
+  ambientes: [],
+};
+
+function formatarData(iso: string) {
+  return new Date(iso).toLocaleDateString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
   });
-  
+}
+
+function formatarHorario(iso: string) {
+  return new Date(iso).toLocaleTimeString('pt-BR', {
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function obterDraftSerializado(vistoriaState: Partial<Vistoria>) {
+  return {
+    id: crypto.randomUUID(),
+    nomeProjeto: vistoriaState.nomeProjeto || 'Projeto sem nome',
+    processoSei: vistoriaState.processoSei || '',
+    endereco: vistoriaState.endereco || '',
+    secretaria: vistoriaState.secretaria || listaSecretariasDropdown[3],
+    dataVistoria: vistoriaState.dataVistoria || '',
+    observacoes: vistoriaState.observacoes || '',
+    ambientes: (vistoriaState.ambientes || []).map((ambiente) => ({
+      id: ambiente.id,
+      nome: ambiente.nome,
+      fotos: (ambiente.fotos || []).map((foto) => ({
+        id: foto.id,
+        url: foto.dataUrl || foto.url || '',
+        dataUrl: foto.dataUrl || foto.url || '',
+        descricao: foto.descricao || '',
+      })),
+    })),
+    modifiedAt: new Date().toISOString(),
+  } as SavedProjeto;
+}
+
+function carregarDraftsDoStorage(): SavedProjeto[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(LOCAL_DRAFTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as SavedProjeto[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function NovaVistoria() {
+  const [vistoria, setVistoria] = useState<Partial<Vistoria>>(initialVistoriaState);
+  const [salvos, setSalvos] = useState<SavedProjeto[]>([]);
+  const [mostrarListaProjetos, setMostrarListaProjetos] = useState(false);
+  const [statusMensagem, setStatusMensagem] = useState('');
   const [aGuardar, setAGuardar] = useState(false);
-  const [msgProcesso, setMsgProcesso] = useState({ text: "", color: "" });
+  const [msgProcesso, setMsgProcesso] = useState({ text: '', color: '' });
   const [erros, setErros] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSalvos(carregarDraftsDoStorage().sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
+  }, []);
+
+  useEffect(() => {
+    if (!vistoria.nomeProjeto?.trim()) return;
+
+    const timer = window.setTimeout(() => {
+      const draft = obterDraftSerializado(vistoria);
+      const atualizados = [draft, ...salvos.filter(item => item.id !== draft.id)];
+      window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(atualizados));
+      setSalvos(atualizados.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
+      setStatusMensagem('Rascunho salvo automaticamente.');
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [vistoria]);
+
+  const salvarRascunhoLocal = (mostrarAlerta = true) => {
+    if (!vistoria.nomeProjeto?.trim()) {
+      if (mostrarAlerta) {
+        alert('Informe o nome do projeto para salvar o rascunho.');
+      }
+      return;
+    }
+
+    const draft = obterDraftSerializado(vistoria);
+    const atualizados = [draft, ...salvos.filter(item => item.id !== draft.id)];
+    window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(atualizados));
+    setSalvos(atualizados.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
+    if (mostrarAlerta) {
+      alert(`Rascunho "${vistoria.nomeProjeto}" salvo com sucesso!`);
+    }
+    setStatusMensagem('Rascunho salvo.');
+  };
+
+  const carregarProjetoSalvo = (projeto: SavedProjeto) => {
+    setVistoria({
+      nomeProjeto: projeto.nomeProjeto,
+      processoSei: projeto.processoSei,
+      endereco: projeto.endereco,
+      secretaria: projeto.secretaria,
+      dataVistoria: projeto.dataVistoria,
+      observacoes: projeto.observacoes,
+      ambientes: projeto.ambientes,
+    });
+    setMostrarListaProjetos(false);
+    setStatusMensagem(`Projeto "${projeto.nomeProjeto}" carregado.`);
+  };
+
+  const excluirProjetoSalvo = (id: string) => {
+    const atualizados = salvos.filter(item => item.id !== id);
+    window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(atualizados));
+    setSalvos(atualizados);
+    setStatusMensagem('Projeto excluído da lista de rascunhos.');
+  };
+
+  const agruparPorData = (itens: SavedProjeto[]) => {
+    return itens.reduce<Record<string, SavedProjeto[]>>((acc, projeto) => {
+      const data = formatarData(projeto.modifiedAt);
+      if (!acc[data]) acc[data] = [];
+      acc[data].push(projeto);
+      return acc;
+    }, {});
+  };
 
   const getFileDataUrl = (file: File) => {
     return new Promise<string>((resolve, reject) => {
