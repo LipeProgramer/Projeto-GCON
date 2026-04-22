@@ -70,17 +70,16 @@ function obterDraftSerializado(vistoriaState: Partial<Vistoria>) {
   } as SavedProjeto;
 }
 
-function carregarDraftsDoStorage(): SavedProjeto[] {
+const carregarDraftsDoStorage = (): SavedProjeto[] => {
   if (typeof window === 'undefined') return [];
+  const dados = window.localStorage.getItem(LOCAL_DRAFTS_KEY);
+  if (!dados) return [];
   try {
-    const raw = window.localStorage.getItem(LOCAL_DRAFTS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as SavedProjeto[];
-    return Array.isArray(parsed) ? parsed : [];
+    return JSON.parse(dados) as SavedProjeto[];
   } catch {
     return [];
   }
-}
+};
 
 export function NovaVistoria() {
   const [vistoria, setVistoria] = useState<Partial<Vistoria>>(initialVistoriaState);
@@ -88,7 +87,7 @@ export function NovaVistoria() {
   const [statusMensagem, setStatusMensagem] = useState('');
   const [aGuardar, setAGuardar] = useState(false);
   const [msgProcesso, setMsgProcesso] = useState({ text: '', color: '' });
-  const [mostrarListaProjetos, setMostrarListaProjetos] = useState(false); // Adicione este estado, pois é usado em carregarProjetoSalvo
+  const [mostrarListaProjetos, setMostrarListaProjetos] = useState(false);
 
   useEffect(() => {
     setSalvos(carregarDraftsDoStorage().sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
@@ -108,22 +107,25 @@ export function NovaVistoria() {
     return () => window.clearTimeout(timer);
   }, [vistoria]);
 
-  const salvarRascunhoLocal = (mostrarAlerta = true) => {
-    if (!vistoria.nomeProjeto?.trim()) {
-      if (mostrarAlerta) {
-        alert('Informe o nome do projeto para salvar o rascunho.');
-      }
-      return;
+  const salvarRascunhoLocal = () => {
+    const drafts = carregarDraftsDoStorage();
+
+    const projeto: SavedProjeto = {
+      ...(vistoria as SavedProjeto),
+      id: (vistoria as any).id || crypto.randomUUID?.() || `${Date.now()}`,
+      modifiedAt: new Date().toISOString(),
+    } as SavedProjeto;
+
+    const index = drafts.findIndex(item => item.id === projeto.id);
+    if (index >= 0) {
+      drafts[index] = projeto;
+    } else {
+      drafts.push(projeto);
     }
 
-    const draft = obterDraftSerializado(vistoria);
-    const atualizados = [draft, ...salvos.filter(item => item.id !== draft.id)];
-    window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(atualizados));
-    setSalvos(atualizados.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)));
-    if (mostrarAlerta) {
-      alert(`Rascunho "${vistoria.nomeProjeto}" salvo com sucesso!`);
-    }
-    setStatusMensagem('Rascunho salvo.');
+    window.localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(drafts));
+    setSalvos(drafts);
+    setStatusMensagem('Projeto salvo com sucesso.');
   };
 
   const carregarProjetoSalvo = (projeto: SavedProjeto) => {
@@ -156,17 +158,11 @@ export function NovaVistoria() {
     }, {});
   };
 
-  const getFileDataUrl = (file: File) => {
-    return new Promise<string>((resolve, reject) => {
+  const getFileDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          resolve(reader.result);
-        } else {
-          reject(new Error('Falha ao ler imagem')); 
-        }
-      };
-      reader.onerror = () => reject(reader.error);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
       reader.readAsDataURL(file);
     });
   };
@@ -359,7 +355,7 @@ export function NovaVistoria() {
               onChange={e => setVistoria({...vistoria, nomeProjeto: e.target.value})}
             />
             <button type="button" className="btn-secondary" onClick={() => setMostrarListaProjetos(true)}>Carregar Projeto</button>
-            <button type="button" className="btn-secondary" onClick={() => salvarRascunhoLocal(true)}>Salvar Rascunho</button>
+            <button type="button" className="btn-secondary" onClick={salvarRascunhoLocal}>Salvar Rascunho</button>
             <button type="button" className="btn-ok" onClick={adicionarAmbiente}>Adicionar Ambiente</button>
             <button type="button" className="btn-secondary" onClick={handleGuardar} disabled={aGuardar}>
               {aGuardar ? 'Salvando...' : 'Salvar Projeto'}
